@@ -48,6 +48,24 @@
   let addLinkTo = '';
   let addLinkType = 'lan';
 
+  // Custom confirmation modals
+  let showClearConfirmModal = false;
+  let showDeleteConfirmModal = false;
+
+  // Modern UI notifications
+  let errorMessage = '';
+  let successMessage = '';
+
+  function showError(msg) {
+    errorMessage = msg;
+    setTimeout(() => { errorMessage = ''; }, 5000);
+  }
+
+  function showSuccess(msg) {
+    successMessage = msg;
+    setTimeout(() => { successMessage = ''; }, 3000);
+  }
+
   // Wails Event Listeners unsubscribe callbacks
   let unsubProgress = null;
   let unsubComplete = null;
@@ -261,30 +279,35 @@
       await loadMapData();
       showEditModal = false;
       selectedNode = null;
+      showSuccess('Saved node changes.');
     } catch (err) {
-      alert('Failed to save node changes: ' + err);
+      showError('Failed to save node changes: ' + err);
     }
   }
 
   // Delete manual node
-  async function deleteSelectedNode() {
+  function deleteSelectedNode() {
+    showDeleteConfirmModal = true;
+  }
+
+  async function confirmDeleteNode() {
     if (!selectedNode) return;
-    if (confirm(`Are you sure you want to delete node ${selectedNode.label}?`)) {
-      try {
-        await DeleteNode(selectedNode.id);
-        await loadMapData();
-        showEditModal = false;
-        selectedNode = null;
-      } catch (err) {
-        alert('Failed to delete node: ' + err);
-      }
+    showDeleteConfirmModal = false;
+    try {
+      await DeleteNode(selectedNode.id);
+      await loadMapData();
+      showEditModal = false;
+      selectedNode = null;
+      showSuccess('Node deleted.');
+    } catch (err) {
+      showError('Failed to delete node: ' + err);
     }
   }
 
   // Add custom manual node
   async function handleAddNode() {
     if (!addNodeIP.trim() || !addNodeLabel.trim()) {
-      alert('IP address and label are required.');
+      showError('IP address and label are required.');
       return;
     }
     try {
@@ -308,19 +331,20 @@
       addNodeIP = '';
       addNodeLabel = '';
       addNodeType = 'unknown';
+      showSuccess('Custom node added.');
     } catch (err) {
-      alert('Failed to add custom node: ' + err);
+      showError('Failed to add custom node: ' + err);
     }
   }
 
   // Add custom manual link
   async function handleAddLink() {
     if (!addLinkFrom || !addLinkTo) {
-      alert('Please select both nodes.');
+      showError('Please select both nodes.');
       return;
     }
     if (addLinkFrom === addLinkTo) {
-      alert('Cannot connect a node to itself.');
+      showError('Cannot connect a node to itself.');
       return;
     }
     try {
@@ -330,20 +354,27 @@
       addLinkFrom = '';
       addLinkTo = '';
       addLinkType = 'lan';
+      showSuccess('Connection link added.');
     } catch (err) {
-      alert('Failed to add connection link: ' + err);
+      showError('Failed to add connection link: ' + err);
     }
   }
 
   // Clear Map
-  async function handleClearMap() {
-    if (confirm('Clear the entire network map? This will delete all nodes and links.')) {
-      try {
-        await ClearMap();
-        await loadMapData();
-      } catch (err) {
-        alert('Failed to clear map: ' + err);
-      }
+  function handleClearMap() {
+    showClearConfirmModal = true;
+  }
+
+  async function confirmClearMap() {
+    showClearConfirmModal = false;
+    try {
+      await ClearMap();
+      selectedNode = null;
+      showEditModal = false;
+      await loadMapData();
+      showSuccess('Network map cleared.');
+    } catch (err) {
+      showError('Failed to clear map: ' + err);
     }
   }
 
@@ -356,7 +387,17 @@
   }
 </script>
 
-<div class="flex flex-col h-full w-full bg-slate-950">
+<div class="flex flex-col h-full w-full bg-slate-950 relative">
+  {#if errorMessage}
+    <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-rose-950/95 border border-rose-800 text-rose-200 px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 text-xs backdrop-blur-md transition-all duration-200">
+      <span>⚠️</span> {errorMessage}
+    </div>
+  {/if}
+  {#if successMessage}
+    <div class="absolute top-4 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/95 border border-indigo-900 text-slate-200 px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 text-xs backdrop-blur-md transition-all duration-200">
+      <span>✅</span> {successMessage}
+    </div>
+  {/if}
   <!-- Controls Dashboard Header -->
   <div class="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-900 border-b border-slate-800">
     <div class="flex items-center gap-4">
@@ -576,6 +617,40 @@
         <div class="flex justify-end gap-2 mt-6">
           <button on:click={() => showAddLinkModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl">Cancel</button>
           <button on:click={handleAddLink} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl shadow-lg shadow-sky-600/10">Add Connection</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- MODAL: Confirm Clear Map -->
+  {#if showClearConfirmModal}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+        <button on:click={() => showClearConfirmModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
+        
+        <h3 class="text-lg font-bold text-rose-500 mb-2">Clear Network Map?</h3>
+        <p class="text-slate-300 text-sm mb-6">Are you sure you want to clear the entire network map? This will delete all nodes and links. This action cannot be undone.</p>
+        
+        <div class="flex justify-end gap-3">
+          <button on:click={() => showClearConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
+          <button on:click={confirmClearMap} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">Clear Map</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- MODAL: Confirm Delete Node -->
+  {#if showDeleteConfirmModal && selectedNode}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+        <button on:click={() => showDeleteConfirmModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
+        
+        <h3 class="text-lg font-bold text-rose-500 mb-2">Delete Node?</h3>
+        <p class="text-slate-300 text-sm mb-6">Are you sure you want to delete node <span class="font-semibold text-slate-100">{selectedNode.label}</span>? This action cannot be undone.</p>
+        
+        <div class="flex justify-end gap-3">
+          <button on:click={() => showDeleteConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
+          <button on:click={confirmDeleteNode} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">Delete</button>
         </div>
       </div>
     </div>

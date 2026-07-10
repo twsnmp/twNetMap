@@ -192,10 +192,11 @@ func (db *DB) DeleteNode(id string) error {
 // ClearAllNodes deletes all node records.
 func (db *DB) ClearAllNodes() error {
 	return db.conn.Update(func(tx *bolt.Tx) error {
-		if err := tx.DeleteBucket(bucketNodes); err != nil {
+		err := tx.DeleteBucket(bucketNodes)
+		if err != nil && err != bolt.ErrBucketNotFound {
 			return err
 		}
-		_, err := tx.CreateBucketIfNotExists(bucketNodes)
+		_, err = tx.CreateBucketIfNotExists(bucketNodes)
 		return err
 	})
 }
@@ -205,6 +206,9 @@ func (db *DB) GetNodes() ([]*Node, error) {
 	nodes := []*Node{}
 	err := db.conn.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketNodes)
+		if b == nil {
+			return nil
+		}
 		return b.ForEach(func(k, v []byte) error {
 			var node Node
 			if err := json.Unmarshal(v, &node); err != nil {
@@ -257,10 +261,11 @@ func (db *DB) DeleteLink(id string) error {
 // ClearAllLinks deletes all link records.
 func (db *DB) ClearAllLinks() error {
 	return db.conn.Update(func(tx *bolt.Tx) error {
-		if err := tx.DeleteBucket(bucketLinks); err != nil {
+		err := tx.DeleteBucket(bucketLinks)
+		if err != nil && err != bolt.ErrBucketNotFound {
 			return err
 		}
-		_, err := tx.CreateBucketIfNotExists(bucketLinks)
+		_, err = tx.CreateBucketIfNotExists(bucketLinks)
 		return err
 	})
 }
@@ -270,6 +275,9 @@ func (db *DB) GetLinks() ([]*Link, error) {
 	links := []*Link{}
 	err := db.conn.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketLinks)
+		if b == nil {
+			return nil
+		}
 		return b.ForEach(func(k, v []byte) error {
 			var link Link
 			if err := json.Unmarshal(v, &link); err != nil {
