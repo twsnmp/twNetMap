@@ -28,3 +28,97 @@ html, body, #app {
 ::-webkit-scrollbar-thumb:hover {
     background: #64748b;
 }
+
+/* Custom styling for vis-network navigation buttons */
+.vis-network .vis-navigation .vis-button {
+  background-image: none !important;
+  background-color: #1e293b !important; /* slate-800 equivalent */
+  border: 2px solid #3b82f6 !important; /* blue-500 equivalent */
+  color: #3b82f6 !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 16px !important;
+  font-weight: bold !important;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3), 0 2px 4px -2px rgba(0, 0, 0, 0.3) !important;
+  transition: all 0.2s ease-in-out !important;
+  cursor: pointer !important;
+  width: 32px !important;
+  height: 32px !important;
+  box-sizing: border-box !important;
+}
+
+.vis-network .vis-navigation .vis-button:hover {
+  background-color: #2563eb !important; /* blue-600 */
+  border-color: #2563eb !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.6) !important;
+}
+
+/* Insert SVG icons or Unicode symbols into buttons */
+.vis-network .vis-navigation .vis-button.vis-zoomIn::after {
+  content: "+" !important;
+}
+.vis-network .vis-navigation .vis-button.vis-zoomOut::after {
+  content: "−" !important;
+}
+.vis-network .vis-navigation .vis-button.vis-zoomExtends::after {
+  content: "⛶" !important; /* Zoom to fit icon */
+  font-size: 14px !important;
+}
+.vis-network .vis-navigation .vis-button.vis-up::after {
+  content: "↑" !important;
+}
+.vis-network .vis-navigation .vis-button.vis-down::after {
+  content: "↓" !important;
+}
+.vis-network .vis-navigation .vis-button.vis-left::after {
+  content: "←" !important;
+}
+.vis-network .vis-navigation .vis-button.vis-right::after {
+  content: "→" !important;
+}
+
+/* Reposition navigation buttons (up, down, left, right) to the top-right corner */
+.vis-network .vis-navigation .vis-button.vis-up {
+  top: 16px !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: 52px !important;
+}
+.vis-network .vis-navigation .vis-button.vis-down {
+  top: 52px !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: 52px !important;
+}
+.vis-network .vis-navigation .vis-button.vis-left {
+  top: 52px !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: 88px !important;
+}
+.vis-network .vis-navigation .vis-button.vis-right {
+  top: 52px !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: 16px !important;
+}
+
+/* Maintain original right-bottom position for zoom buttons but align with grid */
+.vis-network .vis-navigation .vis-button.vis-zoomIn {
+  top: auto !important;
+  bottom: 16px !important;
+  right: 52px !important;
+}
+.vis-network .vis-navigation .vis-button.vis-zoomOut {
+  top: auto !important;
+  bottom: 16px !important;
+  right: 16px !important;
+}
+.vis-network .vis-navigation .vis-button.vis-zoomExtends {
+  top: auto !important;
+  bottom: 52px !important;
+  right: 16px !important;
+}
