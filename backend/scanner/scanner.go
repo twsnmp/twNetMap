@@ -216,19 +216,32 @@ func tryUDPPing(ipStr string, timeout time.Duration) bool {
 		return false
 	}
 
-	c.SetReadDeadline(time.Now().Add(timeout))
+	deadline := time.Now().Add(timeout)
 	reply := make([]byte, 1500)
-	n, _, err := c.ReadFrom(reply)
-	if err != nil {
-		return false
-	}
+	for {
+		if time.Now().After(deadline) {
+			return false
+		}
+		c.SetReadDeadline(deadline)
+		n, peer, err := c.ReadFrom(reply)
+		if err != nil {
+			return false
+		}
 
-	parsed, err := icmp.ParseMessage(protocolICMP, reply[:n])
-	if err != nil {
-		return false
-	}
+		udpPeer, ok := peer.(*net.UDPAddr)
+		if !ok || udpPeer.IP.String() != ipStr {
+			continue // ignore replies from other hosts (late replies on reused ports)
+		}
 
-	return parsed.Type == ipv4.ICMPTypeEchoReply
+		parsed, err := icmp.ParseMessage(protocolICMP, reply[:n])
+		if err != nil {
+			continue
+		}
+
+		if parsed.Type == ipv4.ICMPTypeEchoReply {
+			return true
+		}
+	}
 }
 
 const protocolICMP = 1
