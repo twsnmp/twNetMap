@@ -576,7 +576,7 @@
               placeholder="Detailed hardware / description info..." 
               rows="2"
               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 resize-none" 
-            />
+            ></textarea>
           </div>
 
           <div class="flex justify-end gap-2 mt-6">
@@ -663,7 +663,7 @@
               bind:value={nodeForm.sysDesc} 
               rows="2"
               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 resize-none" 
-            />
+            ></textarea>
           </div>
 
           <!-- Metadata display -->
