@@ -5,8 +5,9 @@
   import NetworkMap from './routes/NetworkMap.svelte';
   import ScanSettings from './routes/ScanSettings.svelte';
   import AISettings from './routes/AISettings.svelte';
+  import NodeList from './routes/NodeList.svelte';
 
-  let activeTab = 'dashboard'; // 'dashboard' | 'scan' | 'ai'
+  let activeTab = 'dashboard'; // 'dashboard' | 'nodes' | 'scan' | 'ai'
   let config = {
     Subnet: '192.168.1.0/24',
     SnmpMode: 'v2c',
@@ -71,6 +72,12 @@
         Network Map
       </button>
       <button 
+        on:click={() => { activeTab = 'nodes'; }} 
+        class={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition duration-150 ${activeTab === 'nodes' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'text-slate-400 hover:text-slate-200 border border-transparent'}`}
+      >
+        Node List
+      </button>
+      <button 
         on:click={() => { activeTab = 'scan'; handleConfigChanged(); }} 
         class={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition duration-150 ${activeTab === 'scan' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'text-slate-400 hover:text-slate-200 border border-transparent'}`}
       >
@@ -95,6 +102,10 @@
     {#if activeTab === 'dashboard'}
       <div class="w-full h-full animate-fade-in">
         <NetworkMap {config} />
+      </div>
+    {:else if activeTab === 'nodes'}
+      <div class="w-full h-full overflow-y-auto p-8 bg-slate-950 animate-fade-in">
+        <NodeList />
       </div>
     {:else if activeTab === 'scan'}
       <div class="w-full h-full overflow-y-auto p-8 bg-slate-950 animate-fade-in">
