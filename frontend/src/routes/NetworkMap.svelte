@@ -446,8 +446,8 @@
     <!-- Active Scanning & Inference Status Overlays -->
     <div class="flex items-center gap-4 text-xs">
       {#if scanning}
-        <div class="flex flex-col items-end w-48">
-          <span class="text-sky-400 font-medium truncate max-w-xs">{scanMessage}</span>
+        <div class="flex flex-col items-start w-64 md:w-80">
+          <span class="text-sky-400 font-medium truncate max-w-full" title={scanMessage}>{scanMessage}</span>
           <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
             <div class="bg-sky-400 h-1.5 rounded-full transition-all duration-300" style="width: {scanProgress}%"></div>
           </div>
@@ -455,8 +455,8 @@
       {/if}
 
       {#if aiRunning || aiMessage}
-        <div class="text-right">
-          <span class={`font-medium ${aiRunning ? 'text-indigo-400 animate-pulse' : 'text-slate-400'}`}>
+        <div class="text-left md:text-right">
+          <span class={`font-medium ${aiRunning ? 'text-indigo-400 animate-pulse' : 'text-slate-400'}`} title={aiMessage}>
             {aiMessage}
           </span>
         </div>
