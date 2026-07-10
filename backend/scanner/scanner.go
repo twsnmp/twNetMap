@@ -444,7 +444,7 @@ func getStringValue(val interface{}) string {
 }
 
 // PerformScan executes the scanning workflow for a target subnet/range.
-func PerformScan(ctx context.Context, target string, cfg *datastore.Config, progressCallback func(percent int, msg string)) ([]*ScanResult, error) {
+func PerformScan(ctx context.Context, target string, cfg *datastore.Config, progressCallback func(percent int, msg string), onDetectCallback func(result *ScanResult)) ([]*ScanResult, error) {
 	ips, err := GenerateIPs(target)
 	if err != nil {
 		return nil, err
@@ -517,6 +517,9 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 			results = append(results, res)
 			pct := 5 + int(float64(index+1)/float64(total)*90.0)
 			progressCallback(pct, fmt.Sprintf("Scanned %s - Alive (Ports: %v, SNMP: %v)", ip, openPorts, sysName != ""))
+			if onDetectCallback != nil {
+				onDetectCallback(res)
+			}
 			mu.Unlock()
 
 		}(i, ipStr)

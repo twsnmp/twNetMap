@@ -116,6 +116,19 @@ func (a *App) StartScan(target string) error {
 				"percent": percent,
 				"message": msg,
 			})
+		}, func(res *scanner.ScanResult) {
+			id := res.IP
+			if res.MAC != "" {
+				id = res.MAC
+			}
+			wailsruntime.EventsEmit(a.ctx, "node_detected", map[string]interface{}{
+				"id":      id,
+				"ip":      res.IP,
+				"mac":     res.MAC,
+				"vendor":  res.Vendor,
+				"sysName": res.SysName,
+				"sysDesc": res.SysDesc,
+			})
 		})
 
 		if err != nil {
@@ -129,6 +142,52 @@ func (a *App) StartScan(target string) error {
 		a.mu.Lock()
 		a.latestScanResults = results
 		a.mu.Unlock()
+
+		// Save scanned results as temporary nodes in DB
+		existingNodes, err := a.db.GetNodes()
+		if err == nil {
+			existingNodeMap := make(map[string]*datastore.Node)
+			for _, n := range existingNodes {
+				existingNodeMap[n.ID] = n
+			}
+
+			var nodesToSave []*datastore.Node
+			gridSpacing := 100.0
+			xOffset := 100.0
+			yOffset := 100.0
+
+			for i, r := range results {
+				id := r.IP
+				if r.MAC != "" {
+					id = r.MAC
+				}
+
+				node := &datastore.Node{
+					ID:             id,
+					IP:             r.IP,
+					MAC:            r.MAC,
+					Vendor:         r.Vendor,
+					Label:          r.IP,
+					Type:           "unknown",
+					Reason:         "Detected during active scan",
+					SysName:        r.SysName,
+					SysDesc:        r.SysDesc,
+					X:              xOffset + float64(i%5)*gridSpacing,
+					Y:              yOffset + float64(i/5)*gridSpacing,
+					ManuallyEdited: false,
+				}
+
+				if exist, ok := existingNodeMap[id]; ok {
+					node.X = exist.X
+					node.Y = exist.Y
+					node.Label = exist.Label
+					node.Type = exist.Type
+					node.ManuallyEdited = exist.ManuallyEdited
+				}
+				nodesToSave = append(nodesToSave, node)
+			}
+			_ = a.db.SaveNodes(nodesToSave)
+		}
 
 		wailsruntime.EventsEmit(a.ctx, "scan_complete", map[string]interface{}{
 			"success": true,

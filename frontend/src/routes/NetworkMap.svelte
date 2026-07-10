@@ -70,6 +70,7 @@
   let unsubProgress = null;
   let unsubComplete = null;
   let unsubAiStatus = null;
+  let unsubNodeDetected = null;
 
   // Dynamic SVG builder for device icons
   function getSvgIcon(type, color = '#38bdf8') {
@@ -112,11 +113,12 @@
         scanMessage = data.message;
       });
 
-      unsubComplete = window.runtime.EventsOn('scan_complete', (data) => {
+      unsubComplete = window.runtime.EventsOn('scan_complete', async (data) => {
         scanning = false;
         if (data.success) {
           scanMessage = `Scan complete. Found ${data.count} nodes. Run AI Inference next!`;
           scanProgress = 100;
+          await loadMapData();
         } else {
           scanMessage = `Scan failed: ${data.error}`;
           scanProgress = 0;
@@ -125,6 +127,38 @@
 
       unsubAiStatus = window.runtime.EventsOn('ai_status', (msg) => {
         aiMessage = msg;
+      });
+
+      unsubNodeDetected = window.runtime.EventsOn('node_detected', (data) => {
+        const label = data.sysName || data.ip;
+        const type = 'unknown';
+        const count = nodesDataSet.length;
+        
+        const visNode = {
+          id: data.id,
+          label: label,
+          shape: 'image',
+          image: getSvgIcon(type, getColorForType(type)),
+          x: 100 + (count % 5) * 100,
+          y: 100 + Math.floor(count / 5) * 100,
+          raw: {
+            id: data.id,
+            ip: data.ip,
+            mac: data.mac,
+            vendor: data.vendor,
+            label: label,
+            type: type,
+            sysName: data.sysName,
+            sysDesc: data.sysDesc,
+            reason: 'Detected during active scan'
+          }
+        };
+
+        if (nodesDataSet.get(data.id)) {
+          nodesDataSet.update(visNode);
+        } else {
+          nodesDataSet.add(visNode);
+        }
       });
     }
 
@@ -136,6 +170,7 @@
     if (unsubProgress) unsubProgress();
     if (unsubComplete) unsubComplete();
     if (unsubAiStatus) unsubAiStatus();
+    if (unsubNodeDetected) unsubNodeDetected();
     if (network) {
       network.destroy();
     }
@@ -258,6 +293,7 @@
   async function triggerAIInference() {
     aiRunning = true;
     aiMessage = 'Connecting to LLM...';
+    scanMessage = 'Idle';
     try {
       const data = await RunAIInference();
       await loadMapData();
@@ -371,6 +407,8 @@
       await ClearMap();
       selectedNode = null;
       showEditModal = false;
+      scanMessage = 'Idle';
+      aiMessage = '';
       await loadMapData();
       showSuccess('Network map cleared.');
     } catch (err) {
@@ -445,12 +483,14 @@
 
     <!-- Active Scanning & Inference Status Overlays -->
     <div class="flex items-center gap-4 text-xs">
-      {#if scanning}
+      {#if scanning || (scanMessage && scanMessage !== 'Idle')}
         <div class="flex flex-col items-start w-64 md:w-80">
           <span class="text-sky-400 font-medium truncate max-w-full" title={scanMessage}>{scanMessage}</span>
-          <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
-            <div class="bg-sky-400 h-1.5 rounded-full transition-all duration-300" style="width: {scanProgress}%"></div>
-          </div>
+          {#if scanning}
+            <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
+              <div class="bg-sky-400 h-1.5 rounded-full transition-all duration-300" style="width: {scanProgress}%"></div>
+            </div>
+          {/if}
         </div>
       {/if}
 
