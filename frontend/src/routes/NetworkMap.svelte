@@ -505,7 +505,7 @@
   </div>
 
   <!-- Interactive Vis-Network Canvas -->
-  <div class="relative flex-grow w-full h-full bg-slate-950">
+  <div class="relative flex-grow min-h-0 w-full bg-slate-950">
     <div bind:this={container} class="w-full h-full"></div>
     
     <!-- Legend -->
