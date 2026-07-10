@@ -1,0 +1,49 @@
+{
+  "name": "twNetMap",
+  "frontend:build": "npm run build",
+  "frontend:install": "npm install",
+  "frontend:dev": "",
+  "frontend:dev:build": "",
+  "frontend:dev:install": "",
+  "frontend:dev:watcher": "npm run dev",
+  "frontend:dev:serverUrl": "auto",
+  "wailsjsdir": "/Users/ymi/prj/twsnmp/twNetMap/frontend",
+  "version": "2",
+  "projectdir": "/Users/ymi/prj/twsnmp/twNetMap",
+  "build:dir": "build",
+  "build:tags": "",
+  "outputfilename": "twNetMap",
+  "OutputType": "",
+  "Platform": "",
+  "runNonNativeBuildHooks": false,
+  "postBuildHooks": null,
+  "preBuildHooks": null,
+  "Author": {
+    "name": "twsnmp",
+    "email": "ymi@twise.co.jp"
+  },
+  "Info": {
+    "companyName": "twNetMap",
+    "productName": "twNetMap",
+    "productVersion": "1.0.0",
+    "copyright": "Copyright.........",
+    "comments": "Built using Wails (https://wails.io)",
+    "fileAssociations": null,
+    "protocols": null
+  },
+  "debounceMS": 100,
+  "devServer": "127.0.0.1:34116",
+  "appargs": "",
+  "nsisType": "multiple",
+  "obfuscated": false,
+  "garbleargs": "",
+  "frontend:dir": "frontend",
+  "viteServerTimeout": 10,
+  "bindings": {
+    "ts_generation": {
+      "prefix": "",
+      "suffix": "",
+      "outputType": ""
+    }
+  }
+}

@@ -30,3 +30,12 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Wails / Web
+build/bin/
+node_modules/
+frontend/dist/
+*.db
+frontend/node_modules/
+wailsjs/
+
