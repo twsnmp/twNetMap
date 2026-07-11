@@ -54,6 +54,88 @@
   let showDeleteConfirmModal = false;
   let showRearrangeModal = false;
 
+  // Layout Settings
+  let layoutMode = 'hierarchical'; // 'hierarchical' | 'force' | 'static'
+  let nodeSpacing = 150;
+
+  function changeLayoutMode(mode) {
+    layoutMode = mode;
+    localStorage.setItem('twNetMap_layoutMode', mode);
+    applyLayoutSettings();
+  }
+
+  function updateSpacing(e) {
+    nodeSpacing = parseInt(e.target.value);
+    localStorage.setItem('twNetMap_nodeSpacing', nodeSpacing.toString());
+    applyLayoutSettings();
+  }
+
+  function applyLayoutSettings() {
+    if (!network) return;
+
+    let options = {};
+    if (layoutMode === 'hierarchical') {
+      options = {
+        layout: {
+          hierarchical: {
+            enabled: true,
+            direction: 'UD',
+            sortMethod: 'directed',
+            nodeSpacing: nodeSpacing,
+            levelSeparation: nodeSpacing,
+            parentCentralization: true,
+            edgeMinimization: true,
+            blockShifting: true
+          }
+        },
+        physics: {
+          enabled: false
+        }
+      };
+    } else if (layoutMode === 'force') {
+      const gravConstant = -15 * nodeSpacing;
+      options = {
+        layout: {
+          hierarchical: {
+            enabled: false
+          }
+        },
+        physics: {
+          enabled: true,
+          solver: 'barnesHut',
+          barnesHut: {
+            gravitationalConstant: gravConstant,
+            centralGravity: 0.1,
+            springLength: nodeSpacing,
+            springConstant: 0.04,
+            damping: 0.09,
+            avoidOverlap: 1
+          },
+          stabilization: { iterations: 150 }
+        }
+      };
+    } else if (layoutMode === 'static') {
+      options = {
+        layout: {
+          hierarchical: {
+            enabled: false
+          }
+        },
+        physics: {
+          enabled: false
+        }
+      };
+    }
+
+    network.setOptions(options);
+
+    if (layoutMode === 'hierarchical') {
+      setTimeout(() => {
+        if (network) network.fit();
+      }, 200);
+    }
+  }
+
   // Modern UI notifications
   let errorMessage = '';
   let successMessage = '';
@@ -108,6 +190,12 @@
   }
 
   onMount(async () => {
+    // Load layouts settings from localStorage
+    const savedMode = localStorage.getItem('twNetMap_layoutMode');
+    if (savedMode) layoutMode = savedMode;
+    const savedSpacing = localStorage.getItem('twNetMap_nodeSpacing');
+    if (savedSpacing) nodeSpacing = parseInt(savedSpacing);
+
     // 1. Initialise Wails Events Listeners
     if (window.runtime) {
       unsubProgress = window.runtime.EventsOn('scan_progress', (data) => {
@@ -217,11 +305,6 @@
       if (!network) {
         const dataSet = { nodes: nodesDataSet, edges: edgesDataSet };
         const options = {
-          physics: {
-            enabled: true,
-            stabilization: { iterations: 150 },
-            barnesHut: { gravitationalConstant: -2000, centralGravity: 0.3, springLength: 95 }
-          },
           interaction: {
             hover: true,
             multiselect: false,
@@ -234,6 +317,7 @@
         };
 
         network = new Network(container, dataSet, options);
+        applyLayoutSettings();
 
         // Position change watcher (preserves custom layouts)
         network.on('dragEnd', async (params) => {
@@ -421,8 +505,12 @@
   // Force physical network layout layout reset
   function resetPhysics() {
     if (network) {
-      network.physics.options.enabled = true;
-      network.stabilize();
+      if (layoutMode === 'force') {
+        network.physics.options.enabled = true;
+        network.stabilize();
+      } else {
+        network.fit();
+      }
     }
   }
 
@@ -523,6 +611,50 @@
   <!-- Interactive Vis-Network Canvas -->
   <div class="relative flex-grow min-h-0 w-full bg-slate-950">
     <div bind:this={container} class="w-full h-full"></div>
+    
+    <!-- Layout Settings Panel -->
+    <div class="absolute top-4 left-4 p-2.5 bg-slate-900/95 border border-slate-800 rounded-lg text-xxs space-y-2 z-10 w-44 backdrop-blur-md shadow-2xl">
+      <div class="flex items-center justify-between text-[10px] text-slate-300 font-bold border-b border-slate-800/60 pb-1 mb-1.5">
+        <span class="flex items-center gap-1">⚙️ Layout</span>
+      </div>
+      
+      <div class="space-y-1.5">
+        <span class="block text-slate-500 font-semibold text-[9px] uppercase tracking-wider">Mode</span>
+        <div class="grid grid-cols-3 gap-1">
+          <button 
+            on:click={() => changeLayoutMode('hierarchical')} 
+            class="py-1 rounded-md border transition text-center text-xs {layoutMode === 'hierarchical' ? 'bg-sky-600 border-sky-500 text-white shadow-md shadow-sky-600/10' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750'}"
+            title="Hierarchical Layout (樹状構造)"
+          >
+            🌲
+          </button>
+          <button 
+            on:click={() => changeLayoutMode('force')} 
+            class="py-1 rounded-md border transition text-center text-xs {layoutMode === 'force' ? 'bg-sky-600 border-sky-500 text-white shadow-md shadow-sky-600/10' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750'}"
+            title="Force-Directed Layout (力学モデル)"
+          >
+            ⚛️
+          </button>
+          <button 
+            on:click={() => changeLayoutMode('static')} 
+            class="py-1 rounded-md border transition text-center text-xs {layoutMode === 'static' ? 'bg-sky-600 border-sky-500 text-white shadow-md shadow-sky-600/10' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750'}"
+            title="Static Layout (自由配置・固定)"
+          >
+            📌
+          </button>
+        </div>
+      </div>
+      
+      {#if layoutMode !== 'static'}
+        <div class="space-y-1 pt-0.5">
+          <div class="flex justify-between text-slate-500 font-semibold text-[9px] uppercase tracking-wider">
+            <span>Spacing</span>
+            <span class="text-sky-400 font-mono">{nodeSpacing}px</span>
+          </div>
+          <input type="range" min="50" max="300" step="10" bind:value={nodeSpacing} on:input={updateSpacing} class="w-full accent-sky-500 bg-slate-800 rounded-lg appearance-none h-1 cursor-pointer" />
+        </div>
+      {/if}
+    </div>
     
     <!-- Legend -->
     <div class="absolute bottom-4 left-4 p-3 bg-slate-900/90 border border-slate-850 rounded-xl text-xs space-y-2 pointer-events-none backdrop-blur-md">

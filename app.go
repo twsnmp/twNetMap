@@ -155,10 +155,10 @@ func (a *App) StartScan(target string) error {
 			}
 
 			var nodesToSave []*datastore.Node
-			gridSpacing := 100.0
+			gridSpacing := 180.0
 			xOffset := 100.0
 			yOffset := 100.0
-			columns := 10
+			columns := 8
 
 			seenIDs := make(map[string]bool)
 			for _, r := range results {
@@ -212,7 +212,7 @@ func (a *App) StartScan(target string) error {
 					node.Y = exist.Y
 				} else {
 					node.X = xOffset + float64(autoIndex%columns)*gridSpacing
-					node.Y = yOffset + float64(autoIndex/columns)*gridSpacing
+					node.Y = yOffset + float64(autoIndex/columns)*150.0
 					autoIndex++
 				}
 			}
@@ -296,7 +296,7 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 
 	// 1. Map nodes
 	var nodesToSave []*datastore.Node
-	gridSpacing := 100.0
+	gridSpacing := 180.0
 	xOffset := 100.0
 
 	seenIDs := make(map[string]bool)
@@ -348,6 +348,8 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 				node.Label = exist.Label
 				node.Type = exist.Type
 				node.ManuallyEdited = true
+				node.X = exist.X
+				node.Y = exist.Y
 			}
 		}
 		nodesToSave = append(nodesToSave, node)
@@ -378,9 +380,10 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 				y = typeY["unknown"]
 				t = "unknown"
 			}
-			col := typeCount[t]
+			col := typeCount[t] % 8
+			row := typeCount[t] / 8
 			node.X = xOffset + float64(col)*gridSpacing
-			node.Y = y
+			node.Y = y + float64(row)*80.0
 			typeCount[t]++
 		}
 	}
@@ -542,10 +545,10 @@ func (a *App) RearrangeNodes(preserveManual bool) (*datastore.NodeLinkData, erro
 		return nil, err
 	}
 
-	gridSpacing := 100.0
+	gridSpacing := 180.0
 	xOffset := 100.0
 	yOffset := 100.0
-	columns := 10
+	columns := 8
 
 	// Sort nodes by IP address first, so horizontal layout matches IP order
 	sortNodesByIP(nodes)
@@ -572,9 +575,10 @@ func (a *App) RearrangeNodes(preserveManual bool) (*datastore.NodeLinkData, erro
 				y = typeY["unknown"]
 				t = "unknown"
 			}
-			col := typeCount[t]
+			col := typeCount[t] % 8
+			row := typeCount[t] / 8
 			node.X = xOffset + float64(col)*gridSpacing
-			node.Y = y
+			node.Y = y + float64(row)*80.0
 			typeCount[t]++
 			if !preserveManual {
 				node.ManuallyEdited = false
@@ -588,7 +592,7 @@ func (a *App) RearrangeNodes(preserveManual bool) (*datastore.NodeLinkData, erro
 				continue
 			}
 			node.X = xOffset + float64(autoIndex%columns)*gridSpacing
-			node.Y = yOffset + float64(autoIndex/columns)*gridSpacing
+			node.Y = yOffset + float64(autoIndex/columns)*150.0
 			autoIndex++
 			if !preserveManual {
 				node.ManuallyEdited = false
