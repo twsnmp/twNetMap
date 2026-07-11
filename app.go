@@ -1,11 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
+	"sort"
 	"sync"
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -155,12 +158,19 @@ func (a *App) StartScan(target string) error {
 			gridSpacing := 100.0
 			xOffset := 100.0
 			yOffset := 100.0
+			columns := 10
 
-			for i, r := range results {
+			seenIDs := make(map[string]bool)
+			for _, r := range results {
 				id := r.IP
 				if r.MAC != "" {
 					id = r.MAC
 				}
+
+				if seenIDs[id] {
+					continue // skip duplicate IDs to prevent DB overwrite and layout gaps
+				}
+				seenIDs[id] = true
 
 				node := &datastore.Node{
 					ID:             id,
@@ -172,20 +182,33 @@ func (a *App) StartScan(target string) error {
 					Reason:         "Detected during active scan",
 					SysName:        r.SysName,
 					SysDesc:        r.SysDesc,
-					X:              xOffset + float64(i%5)*gridSpacing,
-					Y:              yOffset + float64(i/5)*gridSpacing,
 					ManuallyEdited: false,
 				}
 
 				if exist, ok := existingNodeMap[id]; ok {
-					node.X = exist.X
-					node.Y = exist.Y
 					node.Label = exist.Label
 					node.Type = exist.Type
 					node.ManuallyEdited = exist.ManuallyEdited
 				}
 				nodesToSave = append(nodesToSave, node)
 			}
+
+			// Sort nodesToSave by IP address
+			sortNodesByIP(nodesToSave)
+
+			// Assign coordinates based on sorted order (preserving manually edited positions)
+			autoIndex := 0
+			for _, node := range nodesToSave {
+				if exist, ok := existingNodeMap[node.ID]; ok && exist.ManuallyEdited {
+					node.X = exist.X
+					node.Y = exist.Y
+				} else {
+					node.X = xOffset + float64(autoIndex%columns)*gridSpacing
+					node.Y = yOffset + float64(autoIndex/columns)*gridSpacing
+					autoIndex++
+				}
+			}
+
 			_ = a.db.SaveNodes(nodesToSave)
 		}
 
@@ -267,9 +290,14 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 	var nodesToSave []*datastore.Node
 	gridSpacing := 100.0
 	xOffset := 100.0
-	yOffset := 100.0
 
-	for i, n := range llmResp.Nodes {
+	seenIDs := make(map[string]bool)
+	for _, n := range llmResp.Nodes {
+		if seenIDs[n.ID] {
+			continue // skip duplicate IDs to prevent DB overwrite and layout gaps
+		}
+		seenIDs[n.ID] = true
+
 		// Find matching raw result to fetch additional properties (SysName, SysDesc, Vendor, IP, MAC)
 		var match *scanner.ScanResult
 		for _, r := range results {
@@ -303,15 +331,11 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 			Reason:         n.Reason,
 			SysName:        sysName,
 			SysDesc:        sysDesc,
-			X:              xOffset + float64(i%5)*gridSpacing,
-			Y:              yOffset + float64(i/5)*gridSpacing,
 			ManuallyEdited: false,
 		}
 
 		// Preserve coordinate/type/label edits if already in database
 		if exist, ok := existingNodeMap[n.ID]; ok {
-			node.X = exist.X
-			node.Y = exist.Y
 			if exist.ManuallyEdited {
 				node.Label = exist.Label
 				node.Type = exist.Type
@@ -319,6 +343,38 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 			}
 		}
 		nodesToSave = append(nodesToSave, node)
+	}
+
+	// Sort nodesToSave by IP address so horizontal layout within each tier is ordered by IP
+	sortNodesByIP(nodesToSave)
+
+	// Assign coordinates based on tiered topology layout
+	typeCount := make(map[string]int)
+	typeY := map[string]float64{
+		"router":  100.0,
+		"switch":  250.0,
+		"server":  400.0,
+		"pc":      550.0,
+		"printer": 700.0,
+		"unknown": 850.0,
+	}
+
+	for _, node := range nodesToSave {
+		if exist, ok := existingNodeMap[node.ID]; ok && exist.ManuallyEdited {
+			node.X = exist.X
+			node.Y = exist.Y
+		} else {
+			t := node.Type
+			y, found := typeY[t]
+			if !found {
+				y = typeY["unknown"]
+				t = "unknown"
+			}
+			col := typeCount[t]
+			node.X = xOffset + float64(col)*gridSpacing
+			node.Y = y
+			typeCount[t]++
+		}
 	}
 
 	// Save to DB
@@ -453,12 +509,108 @@ func (a *App) UpdateNodePositions(positions []PositionNode) error {
 		if n, ok := nodeMap[pos.ID]; ok {
 			n.X = pos.X
 			n.Y = pos.Y
+			n.ManuallyEdited = true // Mark as manually edited when dragged
 			if err := a.db.SaveNode(n); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+// RearrangeNodes recalculates positions of all nodes.
+// If preserveManual is true, manually edited coordinates are kept.
+// If preserveManual is false, it forces a complete layout reset for all nodes.
+func (a *App) RearrangeNodes(preserveManual bool) (*datastore.NodeLinkData, error) {
+	if a.db == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+	nodes, err := a.db.GetNodes()
+	if err != nil {
+		return nil, err
+	}
+	links, err := a.db.GetLinks()
+	if err != nil {
+		return nil, err
+	}
+
+	gridSpacing := 100.0
+	xOffset := 100.0
+	yOffset := 100.0
+	columns := 10
+
+	// Sort nodes by IP address first, so horizontal layout matches IP order
+	sortNodesByIP(nodes)
+
+	if len(links) > 0 {
+		// Tiered layout by device type for topology
+		typeCount := make(map[string]int)
+		typeY := map[string]float64{
+			"router":  100.0,
+			"switch":  250.0,
+			"server":  400.0,
+			"pc":      550.0,
+			"printer": 700.0,
+			"unknown": 850.0,
+		}
+
+		for _, node := range nodes {
+			if preserveManual && node.ManuallyEdited {
+				continue
+			}
+			t := node.Type
+			y, found := typeY[t]
+			if !found {
+				y = typeY["unknown"]
+				t = "unknown"
+			}
+			col := typeCount[t]
+			node.X = xOffset + float64(col)*gridSpacing
+			node.Y = y
+			typeCount[t]++
+			if !preserveManual {
+				node.ManuallyEdited = false
+			}
+		}
+	} else {
+		// Grid layout sorted by IP address
+		autoIndex := 0
+		for _, node := range nodes {
+			if preserveManual && node.ManuallyEdited {
+				continue
+			}
+			node.X = xOffset + float64(autoIndex%columns)*gridSpacing
+			node.Y = yOffset + float64(autoIndex/columns)*gridSpacing
+			autoIndex++
+			if !preserveManual {
+				node.ManuallyEdited = false
+			}
+		}
+	}
+
+	if err := a.db.SaveNodes(nodes); err != nil {
+		return nil, err
+	}
+
+	return a.GetNetworkMap()
+}
+
+// sortNodesByIP sorts a slice of *datastore.Node by their IP address.
+func sortNodesByIP(nodes []*datastore.Node) {
+	sort.Slice(nodes, func(i, j int) bool {
+		ip1 := net.ParseIP(nodes[i].IP)
+		ip2 := net.ParseIP(nodes[j].IP)
+		if ip1 == nil && ip2 == nil {
+			return nodes[i].IP < nodes[j].IP
+		}
+		if ip1 == nil {
+			return false // invalid IP goes to the end
+		}
+		if ip2 == nil {
+			return true
+		}
+		return bytes.Compare(ip1.To16(), ip2.To16()) < 0
+	})
 }
 
 // ClearMap clears the entire network map.

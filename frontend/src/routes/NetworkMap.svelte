@@ -10,7 +10,8 @@
     StartScan,
     StopScan,
     RunAIInference,
-    ClearMap
+    ClearMap,
+    RearrangeNodes
   } from '../../wailsjs/go/main/App';
 
   // Import vis-network standalone
@@ -51,6 +52,7 @@
   // Custom confirmation modals
   let showClearConfirmModal = false;
   let showDeleteConfirmModal = false;
+  let showRearrangeModal = false;
 
   // Modern UI notifications
   let errorMessage = '';
@@ -139,8 +141,8 @@
           label: label,
           shape: 'image',
           image: getSvgIcon(type, getColorForType(type)),
-          x: 100 + (count % 5) * 100,
-          y: 100 + Math.floor(count / 5) * 100,
+          x: 100 + (count % 10) * 100,
+          y: 100 + Math.floor(count / 10) * 100,
           raw: {
             id: data.id,
             ip: data.ip,
@@ -423,6 +425,17 @@
       network.stabilize();
     }
   }
+
+  async function triggerRearrange(preserveManual) {
+    showRearrangeModal = false;
+    try {
+      await RearrangeNodes(preserveManual);
+      await loadMapData();
+      showSuccess('Rearranged map nodes successfully.');
+    } catch (err) {
+      showError('Failed to rearrange map: ' + err);
+    }
+  }
 </script>
 
 <div class="flex flex-col h-full w-full bg-slate-950 relative">
@@ -474,6 +487,9 @@
         </button>
         <button on:click={handleClearMap} class="bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 hover:border-rose-900/50 transition duration-200">
           Clear Map
+        </button>
+        <button on:click={() => showRearrangeModal = true} class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 transition duration-200" title="Auto Layout (Rearrange)">
+          Auto Layout
         </button>
         <button on:click={resetPhysics} class="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs font-medium px-2 py-2 rounded-lg border border-slate-700 transition duration-200" title="Recenter & Stabilize">
           🔄
@@ -657,6 +673,33 @@
         <div class="flex justify-end gap-2 mt-6">
           <button on:click={() => showAddLinkModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl">Cancel</button>
           <button on:click={handleAddLink} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl shadow-lg shadow-sky-600/10">Add Connection</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- MODAL: Confirm Rearrange Map -->
+  {#if showRearrangeModal}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+        <button on:click={() => showRearrangeModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
+        
+        <h3 class="text-lg font-bold text-sky-400 mb-2">Rearrange Network Map</h3>
+        <p class="text-slate-300 text-sm mb-6">Choose how you want to rearrange the nodes on the network map. If links exist (AI Inference topology), nodes will be tiered by device type. Otherwise, they will be arranged in a 10-column grid by IP address.</p>
+        
+        <div class="flex flex-col gap-2 mb-6">
+          <button on:click={() => triggerRearrange(true)} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-3 rounded-xl text-xs shadow-lg shadow-sky-600/10 transition duration-150 text-left flex justify-between items-center">
+            <span>Keep Manual Positions (Only rearrange auto-placed nodes)</span>
+            <span>➔</span>
+          </button>
+          <button on:click={() => triggerRearrange(false)} class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-3 rounded-xl text-xs shadow-lg shadow-indigo-600/10 transition duration-150 text-left flex justify-between items-center">
+            <span>Reset All Positions (Rearrange every node)</span>
+            <span>➔</span>
+          </button>
+        </div>
+        
+        <div class="flex justify-end">
+          <button on:click={() => showRearrangeModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
         </div>
       </div>
     </div>
