@@ -18,15 +18,20 @@ var (
 	configKey = []byte("system")
 )
 
+// SnmpSetting represents a single SNMP credential configuration.
+type SnmpSetting struct {
+	Mode      string `json:"SnmpMode"`      // "v2c", "v3auth", "v3authpriv" etc.
+	Community string `json:"SnmpCommunity"`
+	User      string `json:"SnmpUser"`
+	Password  string `json:"SnmpPassword"`
+}
+
 // Config represents the application settings.
 type Config struct {
-	Subnet          string `json:"Subnet"`
-	SnmpMode        string `json:"SnmpMode"` // "v2c", "v3auth", "v3authpriv" etc.
-	SnmpCommunity   string `json:"SnmpCommunity"`
-	SnmpUser        string `json:"SnmpUser"`
-	SnmpPassword    string `json:"SnmpPassword"`
-	Timeout         int    `json:"Timeout"`
-	Retry           int    `json:"Retry"`
+	Subnet          string        `json:"Subnet"`
+	SnmpConfigs     []SnmpSetting `json:"SnmpConfigs"`
+	Timeout         int           `json:"Timeout"`
+	Retry           int           `json:"Retry"`
 	ActiveProvider  string `json:"ActiveProvider"` // "openai", "ollama", "gemini"
 	OllamaURL       string `json:"OllamaURL"`
 	OllamaModel     string `json:"OllamaModel"`
@@ -120,9 +125,13 @@ func (db *DB) GetConfig() (*Config, error) {
 		if data == nil {
 			// Return default config if not initialized
 			cfg = Config{
-				Subnet:         "192.168.1.0/24",
-				SnmpMode:       "v2c",
-				SnmpCommunity:  "public",
+				Subnet: "192.168.1.0/24",
+				SnmpConfigs: []SnmpSetting{
+					{
+						Mode:      "v2c",
+						Community: "public",
+					},
+				},
 				Timeout:        3,
 				Retry:          1,
 				ActiveProvider: "ollama",

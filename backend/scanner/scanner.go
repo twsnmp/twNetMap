@@ -514,7 +514,14 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 			openPorts := ScanPorts(ip, portsToScan, timeout)
 
 			// 4. SNMP/LLDP
-			sysName, sysDesc, neighbors := QuerySNMP(ip, cfg.SnmpCommunity, cfg.SnmpMode, cfg.SnmpUser, cfg.SnmpPassword, cfg.Timeout, cfg.Retry)
+			var sysName, sysDesc string
+			var neighbors []LLDPNeighbor
+			for _, snmpCfg := range cfg.SnmpConfigs {
+				sysName, sysDesc, neighbors = QuerySNMP(ip, snmpCfg.Community, snmpCfg.Mode, snmpCfg.User, snmpCfg.Password, cfg.Timeout, cfg.Retry)
+				if sysName != "" || len(neighbors) > 0 {
+					break
+				}
+			}
 
 			res := &ScanResult{
 				IP:            ip,

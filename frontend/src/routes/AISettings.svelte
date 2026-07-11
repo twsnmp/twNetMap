@@ -4,10 +4,7 @@
 
   export let config = {
     Subnet: '192.168.1.0/24',
-    SnmpMode: 'v2c',
-    SnmpCommunity: 'public',
-    SnmpUser: '',
-    SnmpPassword: '',
+    SnmpConfigs: [],
     Timeout: 3,
     Retry: 1,
     ActiveProvider: 'ollama',
