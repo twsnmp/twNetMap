@@ -523,6 +523,14 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 				}
 			}
 
+			if sysName == "" {
+				// Fallback to DNS reverse lookup
+				names, err := net.LookupAddr(ip)
+				if err == nil && len(names) > 0 {
+					sysName = strings.TrimSuffix(names[0], ".")
+				}
+			}
+
 			res := &ScanResult{
 				IP:            ip,
 				MAC:           mac,

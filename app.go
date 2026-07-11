@@ -172,12 +172,17 @@ func (a *App) StartScan(target string) error {
 				}
 				seenIDs[id] = true
 
+				label := r.IP
+				if r.SysName != "" {
+					label = r.SysName
+				}
+
 				node := &datastore.Node{
 					ID:             id,
 					IP:             r.IP,
 					MAC:            r.MAC,
 					Vendor:         r.Vendor,
-					Label:          r.IP,
+					Label:          label,
 					Type:           "unknown",
 					Reason:         "Detected during active scan",
 					SysName:        r.SysName,
@@ -187,6 +192,9 @@ func (a *App) StartScan(target string) error {
 
 				if exist, ok := existingNodeMap[id]; ok {
 					node.Label = exist.Label
+					if !exist.ManuallyEdited && r.SysName != "" {
+						node.Label = r.SysName
+					}
 					node.Type = exist.Type
 					node.ManuallyEdited = exist.ManuallyEdited
 				}
