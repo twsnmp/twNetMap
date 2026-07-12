@@ -1,6 +1,6 @@
 module twNetMap
 
-go 1.25.0
+go 1.26.5
 
 require (
 	github.com/gosnmp/gosnmp v1.43.2
