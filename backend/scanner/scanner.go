@@ -332,8 +332,160 @@ func ScanPorts(ip string, ports []int, timeout time.Duration) []int {
 	return openPorts
 }
 
-// QuerySNMP gets SysName, SysDesc and runs LLDP walks if SNMP is available.
-func QuerySNMP(ip, community, mode, user, password string, timeoutSec, retry int) (string, string, []LLDPNeighbor) {
+func getIntValue(val interface{}) int64 {
+	switch v := val.(type) {
+	case int:
+		return int64(v)
+	case int32:
+		return int64(v)
+	case int64:
+		return v
+	case uint:
+		return int64(v)
+	case uint32:
+		return int64(v)
+	case uint64:
+		return int64(v)
+	default:
+		return 0
+	}
+}
+
+func formatMAC(bytes []byte) string {
+	parts := make([]string, len(bytes))
+	for i, b := range bytes {
+		parts[i] = fmt.Sprintf("%02x", b)
+	}
+	return strings.Join(parts, ":")
+}
+
+func getMACFromSNMP(agent *gosnmp.GoSNMP, targetIP string) string {
+	// 1. Try to get the interface index for the target IP
+	// OID: .1.3.6.1.2.1.4.20.1.2.<targetIP>
+	ipIfIndexOid := fmt.Sprintf(".1.3.6.1.2.1.4.20.1.2.%s", targetIP)
+	result, err := agent.Get([]string{ipIfIndexOid})
+	if err == nil && len(result.Variables) > 0 && result.Variables[0].Value != nil {
+		ifIndex := getIntValue(result.Variables[0].Value)
+		if ifIndex > 0 {
+			// 2. Get the MAC address for this interface index
+			// OID: .1.3.6.1.2.1.2.2.1.6.<ifIndex>
+			macOid := fmt.Sprintf(".1.3.6.1.2.1.2.2.1.6.%d", ifIndex)
+			macResult, err := agent.Get([]string{macOid})
+			if err == nil && len(macResult.Variables) > 0 && macResult.Variables[0].Value != nil {
+				val := macResult.Variables[0].Value
+				if bytes, ok := val.([]byte); ok && len(bytes) == 6 {
+					return formatMAC(bytes)
+				}
+			}
+		}
+	}
+
+	// Fallback 1: Walk ipAdEntIfIndex to build mapping
+	ipToIfIndex := make(map[string]int64)
+	_ = agent.Walk(".1.3.6.1.2.1.4.20.1.2", func(variable gosnmp.SnmpPDU) error {
+		name := variable.Name
+		if strings.HasPrefix(name, ".1.3.6.1.2.1.4.20.1.2.") {
+			ip := strings.TrimPrefix(name, ".1.3.6.1.2.1.4.20.1.2.")
+			val := getIntValue(variable.Value)
+			ipToIfIndex[ip] = val
+		}
+		return nil
+	})
+
+	if ifIndex, ok := ipToIfIndex[targetIP]; ok && ifIndex > 0 {
+		macOid := fmt.Sprintf(".1.3.6.1.2.1.2.2.1.6.%d", ifIndex)
+		macResult, err := agent.Get([]string{macOid})
+		if err == nil && len(macResult.Variables) > 0 && macResult.Variables[0].Value != nil {
+			val := macResult.Variables[0].Value
+			if bytes, ok := val.([]byte); ok && len(bytes) == 6 {
+				return formatMAC(bytes)
+			}
+		}
+	}
+
+	// Fallback 2: Walk ifPhysAddress and return the first valid non-loopback MAC
+	var fallbackMAC string
+	_ = agent.Walk(".1.3.6.1.2.1.2.2.1.6", func(variable gosnmp.SnmpPDU) error {
+		if bytes, ok := variable.Value.([]byte); ok && len(bytes) == 6 {
+			isZero := true
+			for _, b := range bytes {
+				if b != 0 {
+					isZero = false
+					break
+				}
+			}
+			if !isZero && fallbackMAC == "" {
+				fallbackMAC = formatMAC(bytes)
+			}
+		}
+		return nil
+	})
+
+	return fallbackMAC
+}
+
+func getArpTableFromSNMP(agent *gosnmp.GoSNMP) map[string]string {
+	arpMap := make(map[string]string)
+
+	// Walk ipNetToMediaPhysAddress (.1.3.6.1.2.1.4.22.1.2)
+	_ = agent.Walk(".1.3.6.1.2.1.4.22.1.2", func(variable gosnmp.SnmpPDU) error {
+		name := variable.Name
+		if strings.HasPrefix(name, ".1.3.6.1.2.1.4.22.1.2.") {
+			suffix := strings.TrimPrefix(name, ".1.3.6.1.2.1.4.22.1.2.")
+			parts := strings.Split(suffix, ".")
+			if len(parts) >= 5 {
+				ip := strings.Join(parts[len(parts)-4:], ".")
+				if bytes, ok := variable.Value.([]byte); ok && len(bytes) == 6 {
+					isZero := true
+					for _, b := range bytes {
+						if b != 0 {
+							isZero = false
+							break
+						}
+					}
+					if !isZero {
+						arpMap[ip] = formatMAC(bytes)
+					}
+				}
+			}
+		}
+		return nil
+	})
+
+	// Walk ipNetToPhysicalPhysAddress (.1.3.6.1.2.1.4.35.1.4)
+	_ = agent.Walk(".1.3.6.1.2.1.4.35.1.4", func(variable gosnmp.SnmpPDU) error {
+		name := variable.Name
+		if strings.HasPrefix(name, ".1.3.6.1.2.1.4.35.1.4.") {
+			suffix := strings.TrimPrefix(name, ".1.3.6.1.2.1.4.35.1.4.")
+			parts := strings.Split(suffix, ".")
+			if len(parts) >= 7 {
+				addrType := parts[1]
+				addrLength := parts[2]
+				if addrType == "1" && addrLength == "4" {
+					ip := strings.Join(parts[3:], ".")
+					if bytes, ok := variable.Value.([]byte); ok && len(bytes) == 6 {
+						isZero := true
+						for _, b := range bytes {
+							if b != 0 {
+								isZero = false
+								break
+							}
+						}
+						if !isZero {
+							arpMap[ip] = formatMAC(bytes)
+						}
+					}
+				}
+			}
+		}
+		return nil
+	})
+
+	return arpMap
+}
+
+// QuerySNMP gets SysName, SysDesc, MAC address, ARP table, and runs LLDP walks if SNMP is available.
+func QuerySNMP(ip, community, mode, user, password string, timeoutSec, retry int) (string, string, string, map[string]string, []LLDPNeighbor) {
 	agent := &gosnmp.GoSNMP{
 		Target:    ip,
 		Port:      161,
@@ -361,7 +513,7 @@ func QuerySNMP(ip, community, mode, user, password string, timeoutSec, retry int
 
 	err := agent.Connect()
 	if err != nil {
-		return "", "", nil
+		return "", "", "", nil, nil
 	}
 	defer agent.Conn.Close()
 
@@ -380,6 +532,12 @@ func QuerySNMP(ip, community, mode, user, password string, timeoutSec, retry int
 			}
 		}
 	}
+
+	// Retrieve target's own MAC address
+	mac := getMACFromSNMP(agent, ip)
+
+	// Retrieve target's ARP/ND table (containing mappings for other nodes)
+	snmpArp := getArpTableFromSNMP(agent)
 
 	// Walk LLDP MIB
 	var neighbors []LLDPNeighbor
@@ -442,7 +600,7 @@ func QuerySNMP(ip, community, mode, user, password string, timeoutSec, retry int
 		}
 	}
 
-	return sysName, sysDesc, neighbors
+	return sysName, sysDesc, mac, snmpArp, neighbors
 }
 
 func getStringValue(val interface{}) string {
@@ -468,6 +626,9 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 	// First query the ARP table to get existing MAC mappings
 	progressCallback(5, "Reading local ARP table...")
 	arpTable := GetARPTable()
+
+	snmpArpTable := make(map[string]string)
+	var snmpArpMu sync.Mutex
 
 	var results []*ScanResult
 	var mu sync.Mutex
@@ -508,19 +669,37 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 
 			// 2. ARP and Vendor OUI
 			mac := arpTable[ip]
+			if mac == "" {
+				snmpArpMu.Lock()
+				mac = snmpArpTable[ip]
+				snmpArpMu.Unlock()
+			}
 			vendor := datastore.FindVendor(mac)
 
 			// 3. Port Scan
 			openPorts := ScanPorts(ip, portsToScan, timeout)
 
 			// 4. SNMP/LLDP
-			var sysName, sysDesc string
+			var sysName, sysDesc, snmpMac string
+			var snmpArp map[string]string
 			var neighbors []LLDPNeighbor
 			for _, snmpCfg := range cfg.SnmpConfigs {
-				sysName, sysDesc, neighbors = QuerySNMP(ip, snmpCfg.Community, snmpCfg.Mode, snmpCfg.User, snmpCfg.Password, cfg.Timeout, cfg.Retry)
-				if sysName != "" || len(neighbors) > 0 {
+				sysName, sysDesc, snmpMac, snmpArp, neighbors = QuerySNMP(ip, snmpCfg.Community, snmpCfg.Mode, snmpCfg.User, snmpCfg.Password, cfg.Timeout, cfg.Retry)
+				if sysName != "" || len(neighbors) > 0 || snmpMac != "" {
+					if snmpArp != nil && len(snmpArp) > 0 {
+						snmpArpMu.Lock()
+						for k, v := range snmpArp {
+							snmpArpTable[k] = v
+						}
+						snmpArpMu.Unlock()
+					}
 					break
 				}
+			}
+
+			if mac == "" && snmpMac != "" {
+				mac = snmpMac
+				vendor = datastore.FindVendor(mac)
 			}
 
 			if sysName == "" {
@@ -554,6 +733,17 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 	}
 
 	wg.Wait()
+
+	// Final pass: Fill in missing MAC addresses using collected SNMP ARP mappings
+	for _, res := range results {
+		if res.MAC == "" {
+			if mac, ok := snmpArpTable[res.IP]; ok {
+				res.MAC = mac
+				res.Vendor = datastore.FindVendor(mac)
+			}
+		}
+	}
+
 	progressCallback(100, fmt.Sprintf("Scan completed: %d active devices identified", len(results)))
 	return results, nil
 }
