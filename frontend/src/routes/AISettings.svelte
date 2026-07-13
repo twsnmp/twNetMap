@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { GetConfig, SaveConfig } from '../../wailsjs/go/main/App';
+  import { GetConfig, SaveConfig, GetHistory, DeleteNodeHistory, DeleteLinkHistory, ClearAllHistory } from '../../wailsjs/go/main/App';
 
   export let config = {
     Subnet: '192.168.1.0/24',
@@ -19,16 +19,67 @@
   let statusMessage = '';
   let statusType = 'success';
 
+  let historyData = { nodes: [], links: [] };
+  let loadingHistory = false;
+
   onMount(async () => {
     try {
       const cfg = await GetConfig();
       if (cfg) {
         config = { ...config, ...cfg };
       }
+      await fetchHistory();
     } catch (err) {
       console.error('Failed to load config:', err);
     }
   });
+
+  async function fetchHistory() {
+    loadingHistory = true;
+    try {
+      const data = await GetHistory();
+      if (data) {
+        historyData = data;
+      }
+    } catch (err) {
+      console.error('Failed to load history:', err);
+    } finally {
+      loadingHistory = false;
+    }
+  }
+
+  async function handleDeleteNodeHistory(id) {
+    if (confirm('Are you sure you want to delete this device history?')) {
+      try {
+        await DeleteNodeHistory(id);
+        await fetchHistory();
+      } catch (err) {
+        alert('Failed to delete: ' + err.message);
+      }
+    }
+  }
+
+  async function handleDeleteLinkHistory(id) {
+    if (confirm('Are you sure you want to delete this connection history?')) {
+      try {
+        await DeleteLinkHistory(id);
+        await fetchHistory();
+      } catch (err) {
+        alert('Failed to delete: ' + err.message);
+      }
+    }
+  }
+
+  async function handleClearAllHistory() {
+    if (confirm('Are you sure you want to clear ALL user editing history? This cannot be undone.')) {
+      try {
+        await ClearAllHistory();
+        await fetchHistory();
+      } catch (err) {
+        alert('Failed to clear history: ' + err.message);
+      }
+    }
+  }
 
   async function handleSave() {
     saving = true;
@@ -158,4 +209,131 @@
       {/if}
     </div>
   </form>
+
+  <div class="mt-8 border-t border-slate-700/50 pt-8">
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <h3 class="text-xl font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">User Edit History (Learning Data)</h3>
+        <p class="text-xs text-slate-400 mt-1">Manual edits to devices and links are saved here. They are used as context for future AI inferences.</p>
+      </div>
+      {#if (historyData.nodes && historyData.nodes.length > 0) || (historyData.links && historyData.links.length > 0)}
+        <button
+          on:click={handleClearAllHistory}
+          class="bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 border border-rose-500/30 font-semibold rounded-xl px-4 py-2 text-xs transition duration-150"
+        >
+          Clear All History
+        </button>
+      {/if}
+    </div>
+
+    {#if loadingHistory}
+      <div class="text-center text-sm text-slate-500 py-6">Loading history...</div>
+    {:else}
+      <div class="space-y-6">
+        <!-- Devices History -->
+        <div>
+          <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-2">Device Edits ({historyData.nodes ? historyData.nodes.length : 0})</h4>
+          {#if historyData.nodes && historyData.nodes.length > 0}
+            <div class="overflow-x-auto bg-slate-900/60 rounded-xl border border-slate-700/50">
+              <table class="w-full text-left text-xs text-slate-300">
+                <thead>
+                  <tr class="border-b border-slate-800 bg-slate-900/80 text-slate-400">
+                    <th class="px-4 py-3">ID (IP/MAC)</th>
+                    <th class="px-4 py-3">Custom Label</th>
+                    <th class="px-4 py-3">Custom Type</th>
+                    <th class="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/40">
+                  {#each historyData.nodes as node}
+                    <tr>
+                      <td class="px-4 py-3 font-mono text-slate-400">{node.id}</td>
+                      <td class="px-4 py-3 font-semibold">{node.label}</td>
+                      <td class="px-4 py-3">
+                        <span class="px-2 py-0.5 rounded-full text-xxs font-medium bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                          {node.type}
+                        </span>
+                      </td>
+                      <td class="px-4 py-3 text-right">
+                        <button
+                          on:click={() => handleDeleteNodeHistory(node.id)}
+                          class="text-rose-400 hover:text-rose-300 font-semibold transition duration-150"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {:else}
+            <div class="text-sm text-slate-500 bg-slate-900/30 rounded-xl border border-slate-700/20 p-4 text-center">
+              No device edit history yet.
+            </div>
+          {/if}
+        </div>
+
+        <!-- Links History -->
+        <div>
+          <h4 class="text-sm font-semibold text-slate-300 uppercase tracking-wider mb-2">Connection Edits ({historyData.links ? historyData.links.length : 0})</h4>
+          {#if historyData.links && historyData.links.length > 0}
+            <div class="overflow-x-auto bg-slate-900/60 rounded-xl border border-slate-700/50">
+              <table class="w-full text-left text-xs text-slate-300">
+                <thead>
+                  <tr class="border-b border-slate-800 bg-slate-900/80 text-slate-400">
+                    <th class="px-4 py-3">Connection Pair</th>
+                    <th class="px-4 py-3">Type</th>
+                    <th class="px-4 py-3">Style</th>
+                    <th class="px-4 py-3">Status</th>
+                    <th class="px-4 py-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/40">
+                  {#each historyData.links as link}
+                    <tr>
+                      <td class="px-4 py-3 font-mono text-slate-400">{link.from} ↔ {link.to}</td>
+                      <td class="px-4 py-3">{link.type || 'N/A'}</td>
+                      <td class="px-4 py-3">
+                        {#if link.style}
+                          <span class="px-2 py-0.5 rounded-full text-xxs font-medium bg-slate-800 text-slate-300 border border-slate-700">
+                            {link.style}
+                          </span>
+                        {:else}
+                          <span class="text-slate-500">default</span>
+                        {/if}
+                      </td>
+                      <td class="px-4 py-3">
+                        {#if link.deleted}
+                          <span class="px-2 py-0.5 rounded-full text-xxs font-medium bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                            Blocked/Deleted
+                          </span>
+                        {:else}
+                          <span class="px-2 py-0.5 rounded-full text-xxs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            Custom Connection
+                          </span>
+                        {/if}
+                      </td>
+                      <td class="px-4 py-3 text-right">
+                        <button
+                          on:click={() => handleDeleteLinkHistory(link.id)}
+                          class="text-rose-400 hover:text-rose-300 font-semibold transition duration-150"
+                        >
+                          Delete
+                        </button>
+                      </td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          {:else}
+            <div class="text-sm text-slate-500 bg-slate-900/30 rounded-xl border border-slate-700/20 p-4 text-center">
+              No connection edit history yet.
+            </div>
+          {/if}
+        </div>
+      </div>
+    {/if}
+  </div>
 </div>

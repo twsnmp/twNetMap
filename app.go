@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -10,6 +11,7 @@ import (
 	"path/filepath"
 	"sort"
 	"sync"
+	"time"
 
 	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 
@@ -56,6 +58,16 @@ func (a *App) startup(ctx context.Context) {
 		return
 	}
 	a.db = database
+
+	// Restore latest scan results from database
+	if data, err := database.GetLatestScanResults(); err == nil && len(data) > 0 {
+		var results []*scanner.ScanResult
+		if err := json.Unmarshal(data, &results); err == nil {
+			a.latestScanResults = results
+		} else {
+			log.Printf("failed to unmarshal restored scan results: %v", err)
+		}
+	}
 }
 
 // shutdown is called when the app closes
@@ -145,6 +157,11 @@ func (a *App) StartScan(target string) error {
 		a.mu.Lock()
 		a.latestScanResults = results
 		a.mu.Unlock()
+
+		// Save raw scan results to database
+		if data, err := json.Marshal(results); err == nil {
+			_ = a.db.SaveLatestScanResults(data)
+		}
 
 		// Save scanned results as temporary nodes in DB
 		existingNodes, err := a.db.GetNodes()
@@ -277,7 +294,10 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 	}
 
 	wailsruntime.EventsEmit(a.ctx, "ai_status", "Connecting to LLM and running inference...")
-	llmResp, err := ai.RunInference(context.Background(), cfg, results)
+	nodeHistories, _ := a.db.GetNodeHistories()
+	linkHistories, _ := a.db.GetLinkHistories()
+
+	llmResp, err := ai.RunInference(context.Background(), cfg, results, nodeHistories, linkHistories)
 	if err != nil {
 		return nil, err
 	}
@@ -292,6 +312,12 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 	existingNodeMap := make(map[string]*datastore.Node)
 	for _, n := range existingNodes {
 		existingNodeMap[n.ID] = n
+	}
+
+	// Make map of node history for quick lookup
+	nodeHistMap := make(map[string]*datastore.NodeHistory)
+	for _, nh := range nodeHistories {
+		nodeHistMap[nh.ID] = nh
 	}
 
 	// 1. Map nodes
@@ -342,11 +368,16 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 			ManuallyEdited: false,
 		}
 
-		// Preserve coordinate/type/label edits if already in database
+		// Apply history if exists
+		if nh, ok := nodeHistMap[node.ID]; ok {
+			node.Label = nh.Label
+			node.Type = nh.Type
+			node.ManuallyEdited = true
+		}
+
+		// Preserve coordinate edits if already in database (takes precedence for position)
 		if exist, ok := existingNodeMap[n.ID]; ok {
 			if exist.ManuallyEdited {
-				node.Label = exist.Label
-				node.Type = exist.Type
 				node.ManuallyEdited = true
 				node.X = exist.X
 				node.Y = exist.Y
@@ -398,17 +429,69 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 		return nil, err
 	}
 
-	// 2. Map links
+	// 2. Map links with history logic
+	linkHistMap := make(map[string]*datastore.LinkHistory)
+	for _, lh := range linkHistories {
+		linkHistMap[lh.ID] = lh
+	}
+
 	var linksToSave []*datastore.Link
-	for i, l := range llmResp.Links {
+	existingLinks := make(map[string]bool)
+	linkIdx := 0
+
+	for _, l := range llmResp.Links {
+		lhID := getLinkHistoryID(l.From, l.To)
+		if hist, ok := linkHistMap[lhID]; ok {
+			if hist.Deleted {
+				// Skip deleted link
+				continue
+			}
+			// Use historical override type and style
+			link := &datastore.Link{
+				ID:            fmt.Sprintf("link_%d", linkIdx),
+				From:          l.From,
+				To:            l.To,
+				Type:          hist.Type,
+				Style:         hist.Style,
+				ManuallyAdded: false,
+			}
+			linksToSave = append(linksToSave, link)
+			existingLinks[lhID] = true
+			linkIdx++
+			continue
+		}
+
 		link := &datastore.Link{
-			ID:            fmt.Sprintf("link_%d", i),
+			ID:            fmt.Sprintf("link_%d", linkIdx),
 			From:          l.From,
 			To:            l.To,
 			Type:          l.Type,
+			Style:         l.Style,
 			ManuallyAdded: false,
 		}
 		linksToSave = append(linksToSave, link)
+		existingLinks[lhID] = true
+		linkIdx++
+	}
+
+	// Add manual links that LLM did not generate
+	for _, hist := range linkHistories {
+		if !hist.Deleted {
+			lhID := getLinkHistoryID(hist.From, hist.To)
+			if !existingLinks[lhID] {
+				link := &datastore.Link{
+					ID:            fmt.Sprintf("link_manual_%s_%s", hist.From, hist.To),
+					From:          hist.From,
+					To:            hist.To,
+					Type:          hist.Type,
+					Style:         hist.Style,
+					ManuallyAdded: true,
+				}
+				linksToSave = append(linksToSave, link)
+				existingLinks[lhID] = true
+				linkIdx++
+			}
+		}
 	}
 
 	if err := a.db.ClearAllLinks(); err != nil {
@@ -441,13 +524,32 @@ func (a *App) GetNetworkMap() (*datastore.NodeLinkData, error) {
 	}, nil
 }
 
+func getLinkHistoryID(from, to string) string {
+	if from < to {
+		return from + "_" + to
+	}
+	return to + "_" + from
+}
+
 // SaveNode saves or updates a node manually.
 func (a *App) SaveNode(node datastore.Node) error {
 	if a.db == nil {
 		return fmt.Errorf("database not initialized")
 	}
 	node.ManuallyEdited = true
-	return a.db.SaveNode(&node)
+	if err := a.db.SaveNode(&node); err != nil {
+		return err
+	}
+	// Save to history
+	nh := &datastore.NodeHistory{
+		ID:        node.ID,
+		IP:        node.IP,
+		MAC:       node.MAC,
+		Label:     node.Label,
+		Type:      node.Type,
+		UpdatedAt: time.Now(),
+	}
+	return a.db.SaveNodeHistory(nh)
 }
 
 // DeleteNode deletes a node and any connected links.
@@ -466,7 +568,7 @@ func (a *App) DeleteNode(id string) error {
 	}
 	for _, l := range links {
 		if l.From == id || l.To == id {
-			if err := a.db.DeleteLink(l.ID); err != nil {
+			if err := a.DeleteLink(l.ID); err != nil {
 				log.Printf("failed to delete connected link %s: %v", l.ID, err)
 			}
 		}
@@ -487,7 +589,20 @@ func (a *App) AddLink(from, to, label, style string) error {
 		Style:         style,
 		ManuallyAdded: true,
 	}
-	return a.db.SaveLink(link)
+	if err := a.db.SaveLink(link); err != nil {
+		return err
+	}
+	// Save to history
+	lh := &datastore.LinkHistory{
+		ID:        getLinkHistoryID(from, to),
+		From:      from,
+		To:        to,
+		Type:      label,
+		Style:     style,
+		Deleted:   false,
+		UpdatedAt: time.Now(),
+	}
+	return a.db.SaveLinkHistory(lh)
 }
 
 // UpdateLink updates an existing link's label and style.
@@ -501,7 +616,20 @@ func (a *App) UpdateLink(id, label, style string) error {
 	}
 	link.Type = label
 	link.Style = style
-	return a.db.SaveLink(link)
+	if err := a.db.SaveLink(link); err != nil {
+		return err
+	}
+	// Save to history
+	lh := &datastore.LinkHistory{
+		ID:        getLinkHistoryID(link.From, link.To),
+		From:      link.From,
+		To:        link.To,
+		Type:      label,
+		Style:     style,
+		Deleted:   false,
+		UpdatedAt: time.Now(),
+	}
+	return a.db.SaveLinkHistory(lh)
 }
 
 // DeleteLink manually deletes a connection.
@@ -509,8 +637,35 @@ func (a *App) DeleteLink(id string) error {
 	if a.db == nil {
 		return fmt.Errorf("database not initialized")
 	}
-	return a.db.DeleteLink(id)
+	link, err := a.db.GetLink(id)
+	if err != nil {
+		// If not found in current map, just try to delete from DB anyway
+		return a.db.DeleteLink(id)
+	}
+
+	if err := a.db.DeleteLink(id); err != nil {
+		return err
+	}
+
+	// Update history
+	lhID := getLinkHistoryID(link.From, link.To)
+	if link.ManuallyAdded {
+		// If it was manually added, delete the manual add history
+		return a.db.DeleteLinkHistory(lhID)
+	} else {
+		// If it was auto-detected (AI/LLM-generated), record that it was deleted by user
+		lh := &datastore.LinkHistory{
+			ID:        lhID,
+			From:      link.From,
+			To:        link.To,
+			Type:      link.Type,
+			Deleted:   true,
+			UpdatedAt: time.Now(),
+		}
+		return a.db.SaveLinkHistory(lh)
+	}
 }
+
 
 // PositionNode represents a node position updates.
 type PositionNode struct {
@@ -652,3 +807,47 @@ func (a *App) ClearMap() error {
 	}
 	return a.db.ClearAllLinks()
 }
+
+// GetHistory retrieves all user edit histories.
+func (a *App) GetHistory() (*datastore.NodeLinkHistoryData, error) {
+	if a.db == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+	nodes, err := a.db.GetNodeHistories()
+	if err != nil {
+		return nil, err
+	}
+	links, err := a.db.GetLinkHistories()
+	if err != nil {
+		return nil, err
+	}
+	return &datastore.NodeLinkHistoryData{
+		Nodes: nodes,
+		Links: links,
+	}, nil
+}
+
+// DeleteNodeHistory deletes a specific node history.
+func (a *App) DeleteNodeHistory(id string) error {
+	if a.db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+	return a.db.DeleteNodeHistory(id)
+}
+
+// DeleteLinkHistory deletes a specific link history.
+func (a *App) DeleteLinkHistory(id string) error {
+	if a.db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+	return a.db.DeleteLinkHistory(id)
+}
+
+// ClearAllHistory deletes all history records.
+func (a *App) ClearAllHistory() error {
+	if a.db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+	return a.db.ClearAllHistory()
+}
+

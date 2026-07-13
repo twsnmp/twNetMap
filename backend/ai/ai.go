@@ -30,13 +30,14 @@ type InferNode struct {
 }
 
 type InferLink struct {
-	From string `json:"from"`
-	To   string `json:"to"`
-	Type string `json:"type"` // "lan"
+	From  string `json:"from"`
+	To    string `json:"to"`
+	Type  string `json:"type"`  // "lan"
+	Style string `json:"style"` // "thin" | "medium" | "thick" | "dotted"
 }
 
 // RunInference connects to the configured LLM and runs the topology inference.
-func RunInference(ctx context.Context, cfg *datastore.Config, scanResults []*scanner.ScanResult) (*LLMResponse, error) {
+func RunInference(ctx context.Context, cfg *datastore.Config, scanResults []*scanner.ScanResult, nodeHistories []*datastore.NodeHistory, linkHistories []*datastore.LinkHistory) (*LLMResponse, error) {
 	var model llms.Model
 	var err error
 
@@ -83,6 +84,45 @@ func RunInference(ctx context.Context, cfg *datastore.Config, scanResults []*sca
 		return nil, err
 	}
 
+	// Format user history
+	type SimplifiedNodeHistory struct {
+		ID    string `json:"id"`
+		Label string `json:"label"`
+		Type  string `json:"type"`
+	}
+	type SimplifiedLinkHistory struct {
+		From    string `json:"from"`
+		To      string `json:"to"`
+		Type    string `json:"type"`
+		Style   string `json:"style"`
+		Deleted bool   `json:"deleted"`
+	}
+
+	var simpNodes []*SimplifiedNodeHistory
+	for _, nh := range nodeHistories {
+		simpNodes = append(simpNodes, &SimplifiedNodeHistory{
+			ID:    nh.ID,
+			Label: nh.Label,
+			Type:  nh.Type,
+		})
+	}
+	var simpLinks []*SimplifiedLinkHistory
+	for _, lh := range linkHistories {
+		simpLinks = append(simpLinks, &SimplifiedLinkHistory{
+			From:    lh.From,
+			To:      lh.To,
+			Type:    lh.Type,
+			Style:   lh.Style,
+			Deleted: lh.Deleted,
+		})
+	}
+
+	historyMap := map[string]interface{}{
+		"nodes": simpNodes,
+		"links": simpLinks,
+	}
+	historyJSON, _ := json.MarshalIndent(historyMap, "", "  ")
+
 	systemPrompt := `You are an expert network administrator and AI topology engine.
 You are given a JSON array of network scan results containing IP addresses, MAC addresses, OUI vendor names, open ports, SNMP/LLDP properties, and TCP banners/HTML responses.
 Analyze the data and determine:
@@ -102,6 +142,13 @@ Analyze the data and determine:
    - Use LLDP neighbor information (matching chassis IDs, system names, or management IPs to other nodes) to establish links.
    - Use structural reasoning: switches connect to endpoints (PCs, servers, printers, wifi APs) and other switches; routers are default gateways that connect to outer links or main switches.
    - Return links in a non-directed manner (e.g. from A to B). Do not duplicate links (e.g., if link A->B exists, do not add B->A).
+4. Prioritize User Edit History (Learning Data):
+   - You MUST prioritize historical user modifications over scanning/inference heuristics.
+   - For nodes: If a node's IP or MAC (ID) matches a node in the history, use the type and label specified in the history.
+   - For links: If a link between From and To matches a link in the history:
+     - If the history says "deleted": true, DO NOT create this link.
+     - If the history has a specific "type", use that type.
+     - If the history has a specific "style", use that style (thin | medium | thick | dotted).
 
 You MUST output strictly valid JSON conforming to the following schema without any conversational text or markdown codeblocks (do NOT wrap with ` + "`" + `json...` + "`" + `).
 
@@ -119,12 +166,13 @@ Output Schema:
     {
       "from": "node_id_1",
       "to": "node_id_2",
-      "type": "lan"
+      "type": "lan",
+      "style": "thin | medium | thick | dotted"
     }
   ]
 }`
 
-	userPrompt := fmt.Sprintf("Here is the raw scan data:\n\n%s\n\nGenerate the network topology JSON:", string(scanJSON))
+	userPrompt := fmt.Sprintf("Here is the user's historical editing behavior (prioritize this as learning/fine-tuning instructions):\n\n%s\n\nHere is the raw scan data:\n\n%s\n\nGenerate the network topology JSON reflecting the user's preferences:", string(historyJSON), string(scanJSON))
 
 	log.Printf("ai userPrompt=%s", userPrompt)
 	content := []llms.MessageContent{

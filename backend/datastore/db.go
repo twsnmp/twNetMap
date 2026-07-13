@@ -14,9 +14,38 @@ var (
 	bucketConfig = []byte("config")
 	bucketNodes  = []byte("nodes")
 	bucketLinks  = []byte("links")
+	bucketNodesHistory = []byte("nodes_history")
+	bucketLinksHistory = []byte("links_history")
+	bucketScanResults  = []byte("scan_results")
 
 	configKey = []byte("system")
 )
+
+// NodeHistory represents a historical edit of a node.
+type NodeHistory struct {
+	ID        string    `json:"id"` // MAC or IP
+	IP        string    `json:"ip"`
+	MAC       string    `json:"mac"`
+	Label     string    `json:"label"`
+	Type      string    `json:"type"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+// LinkHistory represents a historical edit of a link.
+type LinkHistory struct {
+	ID        string    `json:"id"` // direction-independent link key, e.g. "A_B" where A < B alphabetically
+	From      string    `json:"from"`
+	To        string    `json:"to"`
+	Type      string    `json:"type"`
+	Style     string    `json:"style"`
+	Deleted   bool      `json:"deleted"`
+	UpdatedAt time.Time `json:"updatedAt"`
+}
+
+type NodeLinkHistoryData struct {
+	Nodes []*NodeHistory `json:"nodes"`
+	Links []*LinkHistory `json:"links"`
+}
 
 // SnmpSetting represents a single SNMP credential configuration.
 type SnmpSetting struct {
@@ -107,7 +136,7 @@ func (db *DB) Close() error {
 
 func (db *DB) initBuckets() error {
 	return db.conn.Update(func(tx *bolt.Tx) error {
-		buckets := [][]byte{bucketConfig, bucketNodes, bucketLinks}
+		buckets := [][]byte{bucketConfig, bucketNodes, bucketLinks, bucketNodesHistory, bucketLinksHistory, bucketScanResults}
 		for _, b := range buckets {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
 				return fmt.Errorf("failed to create bucket %s: %w", b, err)
@@ -319,3 +348,129 @@ func (db *DB) GetLink(id string) (*Link, error) {
 	}
 	return &link, nil
 }
+
+// SaveNodeHistory saves or updates a node history record.
+func (db *DB) SaveNodeHistory(nh *NodeHistory) error {
+	return db.conn.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketNodesHistory)
+		data, err := json.Marshal(nh)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(nh.ID), data)
+	})
+}
+
+// SaveLinkHistory saves or updates a link history record.
+func (db *DB) SaveLinkHistory(lh *LinkHistory) error {
+	return db.conn.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketLinksHistory)
+		data, err := json.Marshal(lh)
+		if err != nil {
+			return err
+		}
+		return b.Put([]byte(lh.ID), data)
+	})
+}
+
+// GetNodeHistories retrieves all node history records.
+func (db *DB) GetNodeHistories() ([]*NodeHistory, error) {
+	histories := []*NodeHistory{}
+	err := db.conn.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketNodesHistory)
+		if b == nil {
+			return nil
+		}
+		return b.ForEach(func(k, v []byte) error {
+			var nh NodeHistory
+			if err := json.Unmarshal(v, &nh); err != nil {
+				return err
+			}
+			histories = append(histories, &nh)
+			return nil
+		})
+	})
+	return histories, err
+}
+
+// GetLinkHistories retrieves all link history records.
+func (db *DB) GetLinkHistories() ([]*LinkHistory, error) {
+	histories := []*LinkHistory{}
+	err := db.conn.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketLinksHistory)
+		if b == nil {
+			return nil
+		}
+		return b.ForEach(func(k, v []byte) error {
+			var lh LinkHistory
+			if err := json.Unmarshal(v, &lh); err != nil {
+				return err
+			}
+			histories = append(histories, &lh)
+			return nil
+		})
+	})
+	return histories, err
+}
+
+// DeleteNodeHistory deletes a node history record.
+func (db *DB) DeleteNodeHistory(id string) error {
+	return db.conn.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketNodesHistory)
+		return b.Delete([]byte(id))
+	})
+}
+
+// DeleteLinkHistory deletes a link history record.
+func (db *DB) DeleteLinkHistory(id string) error {
+	return db.conn.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketLinksHistory)
+		return b.Delete([]byte(id))
+	})
+}
+
+// ClearAllHistory deletes all history records.
+func (db *DB) ClearAllHistory() error {
+	return db.conn.Update(func(tx *bolt.Tx) error {
+		buckets := [][]byte{bucketNodesHistory, bucketLinksHistory}
+		for _, bucket := range buckets {
+			err := tx.DeleteBucket(bucket)
+			if err != nil && err != bolt.ErrBucketNotFound {
+				return err
+			}
+			_, err = tx.CreateBucketIfNotExists(bucket)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// SaveLatestScanResults saves raw scan results bytes in bolt DB.
+func (db *DB) SaveLatestScanResults(data []byte) error {
+	return db.conn.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketScanResults)
+		return b.Put([]byte("latest"), data)
+	})
+}
+
+// GetLatestScanResults retrieves raw scan results bytes from bolt DB.
+func (db *DB) GetLatestScanResults() ([]byte, error) {
+	var data []byte
+	err := db.conn.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketScanResults)
+		if b == nil {
+			return nil
+		}
+		val := b.Get([]byte("latest"))
+		if val != nil {
+			data = make([]byte, len(val))
+			copy(data, val)
+		}
+		return nil
+	})
+	return data, err
+}
+
+
