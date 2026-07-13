@@ -475,7 +475,7 @@ func (a *App) DeleteNode(id string) error {
 }
 
 // AddLink manually adds a connection between nodes.
-func (a *App) AddLink(from, to, lType string) error {
+func (a *App) AddLink(from, to, label, style string) error {
 	if a.db == nil {
 		return fmt.Errorf("database not initialized")
 	}
@@ -483,9 +483,24 @@ func (a *App) AddLink(from, to, lType string) error {
 		ID:            fmt.Sprintf("link_manual_%s_%s", from, to),
 		From:          from,
 		To:            to,
-		Type:          lType,
+		Type:          label,
+		Style:         style,
 		ManuallyAdded: true,
 	}
+	return a.db.SaveLink(link)
+}
+
+// UpdateLink updates an existing link's label and style.
+func (a *App) UpdateLink(id, label, style string) error {
+	if a.db == nil {
+		return fmt.Errorf("database not initialized")
+	}
+	link, err := a.db.GetLink(id)
+	if err != nil {
+		return err
+	}
+	link.Type = label
+	link.Style = style
 	return a.db.SaveLink(link)
 }
 

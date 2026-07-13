@@ -62,6 +62,7 @@ type Link struct {
 	From          string `json:"from"`
 	To            string `json:"to"`
 	Type          string `json:"type"` // e.g. "lan"
+	Style         string `json:"style"` // thin, medium, thick, dotted
 	ManuallyAdded bool   `json:"manuallyAdded"`
 }
 
@@ -297,4 +298,24 @@ func (db *DB) GetLinks() ([]*Link, error) {
 		})
 	})
 	return links, err
+}
+
+// GetLink retrieves a single link by ID.
+func (db *DB) GetLink(id string) (*Link, error) {
+	var link Link
+	err := db.conn.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket(bucketLinks)
+		if b == nil {
+			return fmt.Errorf("links bucket not found")
+		}
+		v := b.Get([]byte(id))
+		if v == nil {
+			return fmt.Errorf("link not found: %s", id)
+		}
+		return json.Unmarshal(v, &link)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &link, nil
 }

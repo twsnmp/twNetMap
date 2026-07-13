@@ -11,7 +11,8 @@
     StopScan,
     RunAIInference,
     ClearMap,
-    RearrangeNodes
+    RearrangeNodes,
+    UpdateLink
   } from '../../wailsjs/go/main/App';
   import ScanDataModal from './ScanDataModal.svelte';
 
@@ -49,7 +50,16 @@
   let showAddLinkModal = false;
   let addLinkFrom = '';
   let addLinkTo = '';
-  let addLinkType = 'lan';
+  let addLinkLabel = '';
+  let addLinkStyle = 'medium';
+
+  // Edit link modal
+  let showEditLinkModal = false;
+  let editLinkId = '';
+  let editLinkLabel = '';
+  let editLinkStyle = 'medium';
+  let editLinkFromLabel = '';
+  let editLinkToLabel = '';
 
   // Custom confirmation modals
   let showClearConfirmModal = false;
@@ -298,15 +308,32 @@
         raw: n
       }));
 
-      const visEdges = links.map(l => ({
-        id: l.id,
-        from: l.from,
-        to: l.to,
-        label: l.type === 'lan' ? '' : l.type,
-        color: { color: '#475569', highlight: '#38bdf8' },
-        width: 2,
-        raw: l
-      }));
+      const visEdges = links.map(l => {
+        const labelVal = (l.type === 'lan' || !l.type) ? '' : l.type;
+        let edgeWidth = 3;
+        let edgeDashes = false;
+        if (l.style === 'thin') {
+          edgeWidth = 1;
+        } else if (l.style === 'medium') {
+          edgeWidth = 3;
+        } else if (l.style === 'thick') {
+          edgeWidth = 6;
+        } else if (l.style === 'dotted') {
+          edgeWidth = 2;
+          edgeDashes = true;
+        }
+
+        return {
+          id: l.id,
+          from: l.from,
+          to: l.to,
+          label: labelVal,
+          color: { color: '#475569', highlight: '#38bdf8' },
+          width: edgeWidth,
+          dashes: edgeDashes,
+          raw: l
+        };
+      });
 
       nodesDataSet.clear();
       nodesDataSet.add(visNodes);
@@ -525,16 +552,54 @@
       return;
     }
     try {
-      await AddLink(addLinkFrom, addLinkTo, addLinkType);
+      await AddLink(addLinkFrom, addLinkTo, addLinkLabel, addLinkStyle);
       await loadMapData();
       showAddLinkModal = false;
       addLinkFrom = '';
       addLinkTo = '';
-      addLinkType = 'lan';
+      addLinkLabel = '';
+      addLinkStyle = 'medium';
       showSuccess('Connection link added.');
     } catch (err) {
       showError('Failed to add connection link: ' + err);
     }
+  }
+
+  // Edit selected connection link
+  function handleEditLink() {
+    if (!selectedEdgeId) return;
+    const edge = edgesDataSet.get(selectedEdgeId);
+    if (!edge) return;
+
+    const fromNode = nodesDataSet.get(edge.from);
+    const toNode = nodesDataSet.get(edge.to);
+
+    editLinkId = edge.id;
+    editLinkFromLabel = fromNode ? fromNode.label : edge.from;
+    editLinkToLabel = toNode ? toNode.label : edge.to;
+    editLinkLabel = (edge.raw && edge.raw.type) || '';
+    editLinkStyle = (edge.raw && edge.raw.style) || 'medium';
+    showEditLinkModal = true;
+  }
+
+  async function handleUpdateLink() {
+    try {
+      await UpdateLink(editLinkId, editLinkLabel, editLinkStyle);
+      await loadMapData();
+      showEditLinkModal = false;
+      selectedEdgeId = null;
+      if (network) {
+        network.unselectAll();
+      }
+      showSuccess('Connection link updated.');
+    } catch (err) {
+      showError('Failed to update connection link: ' + err);
+    }
+  }
+
+  function handleDeleteLinkFromEditModal() {
+    showEditLinkModal = false;
+    showDeleteLinkConfirmModal = true;
   }
 
   // Delete selected connection link
@@ -668,12 +733,12 @@
           + Connect Nodes
         </button>
         <button 
-          on:click={handleDeleteLink} 
+          on:click={handleEditLink} 
           disabled={!selectedEdgeId}
-          class="disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 bg-rose-600/90 hover:bg-rose-600 text-white text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 disabled:border-slate-800/80 transition duration-200"
-          title="Select a connection line on the map to delete it"
+          class="disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 bg-sky-600/90 hover:bg-sky-600 text-white text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 disabled:border-slate-800/80 transition duration-200"
+          title="Select a connection line on the map to edit it"
         >
-          Delete Link
+          Edit Link
         </button>
         <button on:click={handleClearMap} class="bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 hover:border-rose-900/50 transition duration-200">
           Clear Map
@@ -915,14 +980,77 @@
           </div>
 
           <div>
-            <label for="linkType" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Connection Link Type</label>
-            <input type="text" id="linkType" bind:value={addLinkType} placeholder="e.g. lan, fiber, wifi" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
+            <label for="linkLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Link Label</label>
+            <input type="text" id="linkLabel" bind:value={addLinkLabel} placeholder="e.g. 10G, Trunk, vpn" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
+          </div>
+
+          <div>
+            <label for="linkStyle" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Link Display Type</label>
+            <select id="linkStyle" bind:value={addLinkStyle} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50">
+              <option value="thin">Thin</option>
+              <option value="medium">Medium</option>
+              <option value="thick">Thick</option>
+              <option value="dotted">Dotted</option>
+            </select>
           </div>
         </div>
 
         <div class="flex justify-end gap-2 mt-6">
           <button on:click={() => showAddLinkModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl">Cancel</button>
           <button on:click={handleAddLink} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl shadow-lg shadow-sky-600/10">Add Connection</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- MODAL: Edit Connection -->
+  {#if showEditLinkModal}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+        <button on:click={() => showEditLinkModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
+        
+        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4">Edit Connection</h3>
+        
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Source Node</label>
+            <div class="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2 text-slate-400 text-sm">
+              {editLinkFromLabel}
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Target Node</label>
+            <div class="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2 text-slate-400 text-sm">
+              {editLinkToLabel}
+            </div>
+          </div>
+
+          <div>
+            <label for="editLinkLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Link Label</label>
+            <input type="text" id="editLinkLabel" bind:value={editLinkLabel} placeholder="e.g. 10G, Trunk, vpn" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
+          </div>
+
+          <div>
+            <label for="editLinkStyle" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Link Display Type</label>
+            <select id="editLinkStyle" bind:value={editLinkStyle} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50">
+              <option value="thin">Thin</option>
+              <option value="medium">Medium</option>
+              <option value="thick">Thick</option>
+              <option value="dotted">Dotted</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center mt-6">
+          <button on:click={handleDeleteLinkFromEditModal} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">
+            Delete Connection
+          </button>
+          
+          <div class="flex gap-2">
+            <button on:click={() => showEditLinkModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl text-xs font-semibold">Cancel</button>
+            <button on:click={handleUpdateLink} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-lg shadow-sky-600/10">Save Changes</button>
+          </div>
         </div>
       </div>
     </div>
