@@ -366,7 +366,9 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 		"server":  400.0,
 		"pc":      550.0,
 		"printer": 700.0,
-		"unknown": 850.0,
+		"wifi":    850.0,
+		"mobile":  1000.0,
+		"unknown": 1150.0,
 	}
 
 	for _, node := range nodesToSave {

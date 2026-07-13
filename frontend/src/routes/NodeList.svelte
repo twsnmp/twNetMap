@@ -319,6 +319,8 @@
           <option value="all">All Devices</option>
           <option value="router">Routers</option>
           <option value="switch">Switches</option>
+          <option value="wifi">Wifi APs</option>
+          <option value="mobile">Mobile Devices</option>
           <option value="pc">PCs / Endpoints</option>
           <option value="server">Servers</option>
           <option value="printer">Printers</option>
@@ -538,6 +540,8 @@
             >
               <option value="router">Router</option>
               <option value="switch">Switch</option>
+              <option value="wifi">Wifi AP</option>
+              <option value="mobile">Mobile Device</option>
               <option value="pc">PC / Endpoint</option>
               <option value="server">Server</option>
               <option value="printer">Printer</option>
@@ -628,6 +632,8 @@
             >
               <option value="router">Router</option>
               <option value="switch">Switch</option>
+              <option value="wifi">Wifi AP</option>
+              <option value="mobile">Mobile Device</option>
               <option value="pc">PC / Endpoint</option>
               <option value="server">Server</option>
               <option value="printer">Printer</option>

@@ -1,8 +1,15 @@
 package scanner
 
 import (
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"reflect"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 )
 
 func TestGenerateIPs(t *testing.T) {
@@ -67,3 +74,55 @@ func TestGenerateIPs(t *testing.T) {
 		})
 	}
 }
+
+func TestStripHTMLTags(t *testing.T) {
+	input := `<html><head><title>Test Title</title><style>body { background: #fff; }</style><script>console.log("hello");</script></head><body><h1>Hello World</h1><p>Test paragraph.</p></body></html>`
+	expected := "Test Title Hello World Test paragraph."
+	got := stripHTMLTags(input)
+	if got != expected {
+		t.Errorf("stripHTMLTags() = %q, want %q", got, expected)
+	}
+}
+
+func TestGrabHTTPInfoAndBanner(t *testing.T) {
+	// TCP listener for Banner test
+	bannerText := "220 Welcome to FTP service\r\n"
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("failed to listen: %v", err)
+	}
+	defer ln.Close()
+
+	go func() {
+		conn, err := ln.Accept()
+		if err == nil {
+			conn.Write([]byte(bannerText))
+			conn.Close()
+		}
+	}()
+
+	_, portStr, _ := net.SplitHostPort(ln.Addr().String())
+	port, _ := strconv.Atoi(portStr)
+	gotBanner := grabBanner("127.0.0.1", port, 1*time.Second)
+	expectedBanner := "220 Welcome to FTP service"
+	if gotBanner != expectedBanner {
+		t.Errorf("grabBanner() = %q, want %q", gotBanner, expectedBanner)
+	}
+
+	// HTTP test
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Server", "TestServer/1.0")
+		w.Write([]byte(`<html><head><title>AP Setup</title></head><body>Welcome to the AP configuration portal.</body></html>`))
+	}))
+	defer ts.Close()
+
+	u, _ := url.Parse(ts.URL)
+	_, httpPortStr, _ := net.SplitHostPort(u.Host)
+	httpPort, _ := strconv.Atoi(httpPortStr)
+
+	gotHTTP := grabHTTPInfo("127.0.0.1", httpPort, 2*time.Second)
+	if !strings.Contains(gotHTTP, "Title: AP Setup") || !strings.Contains(gotHTTP, "Server: TestServer/1.0") || !strings.Contains(gotHTTP, "Text: AP Setup Welcome to the AP configuration portal.") {
+		t.Errorf("grabHTTPInfo() returned unexpected result: %q", gotHTTP)
+	}
+}
+

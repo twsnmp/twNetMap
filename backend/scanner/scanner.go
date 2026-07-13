@@ -2,9 +2,12 @@ package scanner
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
+	"io"
 	"log"
 	"net"
+	"net/http"
 	"os/exec"
 	"regexp"
 	"runtime"
@@ -21,13 +24,14 @@ import (
 
 // ScanResult represents the raw collected data for a single node.
 type ScanResult struct {
-	IP          string            `json:"ip"`
-	MAC         string            `json:"mac"`
-	Vendor      string            `json:"vendor"`
-	SysName     string            `json:"sysName"`
-	SysDesc     string            `json:"sysDesc"`
-	OpenPorts   []int             `json:"openPorts"`
-	LLDPNeighbors []LLDPNeighbor   `json:"lldpNeighbors"`
+	IP            string            `json:"ip"`
+	MAC           string            `json:"mac"`
+	Vendor        string            `json:"vendor"`
+	SysName       string            `json:"sysName"`
+	SysDesc       string            `json:"sysDesc"`
+	OpenPorts     []int             `json:"openPorts"`
+	LLDPNeighbors []LLDPNeighbor    `json:"lldpNeighbors"`
+	Banners       map[string]string `json:"banners,omitempty"`
 }
 
 type LLDPNeighbor struct {
@@ -638,7 +642,7 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 	sem := make(chan bool, concurrency)
 	var wg sync.WaitGroup
 
-	portsToScan := []int{21, 22, 23, 80, 161, 443, 3306, 3389, 5432, 8080, 9100}
+	portsToScan := []int{21, 22, 23, 25, 80, 110, 143, 161, 443, 3306, 3389, 5432, 8080, 9100}
 
 	for i, ipStr := range ips {
 		select {
@@ -710,6 +714,9 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 				}
 			}
 
+			// 5. Grab Banners and HTTP Info
+			banners := grabBannersAndHTTPInfo(ip, openPorts, timeout)
+
 			res := &ScanResult{
 				IP:            ip,
 				MAC:           mac,
@@ -718,6 +725,7 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 				SysDesc:       sysDesc,
 				OpenPorts:     openPorts,
 				LLDPNeighbors: neighbors,
+				Banners:       banners,
 			}
 
 			mu.Lock()
@@ -747,3 +755,115 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 	progressCallback(100, fmt.Sprintf("Scan completed: %d active devices identified", len(results)))
 	return results, nil
 }
+
+var scriptTagRegex = regexp.MustCompile(`(?is)<script.*?>.*?</script>`)
+var styleTagRegex = regexp.MustCompile(`(?is)<style.*?>.*?</style>`)
+var htmlTagRegex = regexp.MustCompile(`(?i)<[^>]*>`)
+
+var spaceRegex = regexp.MustCompile(`\s+`)
+
+func stripHTMLTags(s string) string {
+	s = scriptTagRegex.ReplaceAllString(s, " ")
+	s = styleTagRegex.ReplaceAllString(s, " ")
+	s = htmlTagRegex.ReplaceAllString(s, " ")
+	s = spaceRegex.ReplaceAllString(s, " ")
+	return strings.TrimSpace(s)
+}
+
+func grabHTTPInfo(ip string, port int, timeout time.Duration) string {
+	scheme := "http"
+	if port == 443 {
+		scheme = "https"
+	}
+	url := fmt.Sprintf("%s://%s:%d", scheme, ip, port)
+
+	tr := &http.Transport{
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+	}
+	client := &http.Client{
+		Transport: tr,
+		Timeout:   timeout,
+	}
+
+	resp, err := client.Get(url)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	limitReader := io.LimitReader(resp.Body, 16*1024)
+	bodyBytes, err := io.ReadAll(limitReader)
+	if err != nil {
+		return ""
+	}
+
+	title := ""
+	titleRegex := regexp.MustCompile(`(?i)<title>(.*?)</title>`)
+	if matches := titleRegex.FindSubmatch(bodyBytes); len(matches) > 1 {
+		title = strings.TrimSpace(string(matches[1]))
+	}
+
+	serverHeader := resp.Header.Get("Server")
+	plainText := stripHTMLTags(string(bodyBytes))
+	if len(plainText) > 400 {
+		plainText = plainText[:400] + "..."
+	}
+
+	var infoParts []string
+	if title != "" {
+		infoParts = append(infoParts, "Title: "+title)
+	}
+	if serverHeader != "" {
+		infoParts = append(infoParts, "Server: "+serverHeader)
+	}
+	if plainText != "" {
+		infoParts = append(infoParts, "Text: "+plainText)
+	}
+
+	return strings.Join(infoParts, " | ")
+}
+
+func grabBanner(ip string, port int, timeout time.Duration) string {
+	addr := fmt.Sprintf("%s:%d", ip, port)
+	conn, err := net.DialTimeout("tcp", addr, timeout)
+	if err != nil {
+		return ""
+	}
+	defer conn.Close()
+
+	conn.SetReadDeadline(time.Now().Add(timeout))
+
+	buf := make([]byte, 512)
+	n, err := conn.Read(buf)
+	if err != nil {
+		return ""
+	}
+
+	banner := strings.TrimSpace(string(buf[:n]))
+	banner = strings.ReplaceAll(banner, "\r", "")
+	banner = strings.ReplaceAll(banner, "\n", " ")
+	if len(banner) > 200 {
+		banner = banner[:200] + "..."
+	}
+	return banner
+}
+
+func grabBannersAndHTTPInfo(ip string, openPorts []int, timeout time.Duration) map[string]string {
+	banners := make(map[string]string)
+	for _, port := range openPorts {
+		var info string
+		if port == 80 || port == 443 || port == 8080 {
+			info = grabHTTPInfo(ip, port, timeout)
+		} else if port == 21 || port == 22 || port == 23 || port == 25 || port == 110 || port == 143 {
+			info = grabBanner(ip, port, timeout)
+		}
+		if info != "" {
+			banners[strconv.Itoa(port)] = info
+		}
+	}
+	if len(banners) == 0 {
+		return nil
+	}
+	return banners
+}
+

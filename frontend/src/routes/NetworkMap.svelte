@@ -163,6 +163,10 @@
       path = `<circle cx="24" cy="24" r="12" fill="none" stroke="${color}" stroke-width="3"/><path d="M24 2v10M24 36v10M2 24h10M36 24h10" stroke="${color}" stroke-width="3" stroke-linecap="round"/>`;
     } else if (type === 'switch') {
       path = `<rect x="6" y="14" width="36" height="20" rx="3" fill="none" stroke="${color}" stroke-width="3"/><path d="M12 24h24M18 20l-6 4 6 4M30 20l6 4-6 4" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    } else if (type === 'wifi') {
+      path = `<path d="M24 38h.01M16.2 30.2a11 11 0 0 1 15.6 0M10.5 24.5a19 19 0 0 1 27 0M4.8 18.8a27 27 0 0 1 38.4 0" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round"/>`;
+    } else if (type === 'mobile') {
+      path = `<rect x="14" y="6" width="20" height="36" rx="3" fill="none" stroke="${color}" stroke-width="3"/><path d="M14 34h20M24 38h.01" fill="none" stroke="${color}" stroke-width="3" stroke-linecap="round"/>`;
     } else if (type === 'pc') {
       path = `<rect x="8" y="8" width="32" height="22" rx="2" fill="none" stroke="${color}" stroke-width="3"/><path d="M20 30v8M14 38h20M6 42h36" stroke="${color}" stroke-width="3" stroke-linecap="round"/>`;
     } else if (type === 'server') {
@@ -182,6 +186,8 @@
     switch (type) {
       case 'router': return '#f59e0b'; // Amber
       case 'switch': return '#3b82f6'; // Blue
+      case 'wifi': return '#06b6d4';   // Cyan
+      case 'mobile': return '#f43f5e'; // Rose
       case 'pc': return '#10b981';     // Emerald
       case 'server': return '#8b5cf6'; // Violet
       case 'printer': return '#ec4899';// Pink
@@ -662,6 +668,8 @@
       <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
         <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #f59e0b"></span><span class="text-slate-400">Router</span></div>
         <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #3b82f6"></span><span class="text-slate-400">Switch</span></div>
+        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #06b6d4"></span><span class="text-slate-400">Wifi AP</span></div>
+        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #f43f5e"></span><span class="text-slate-400">Mobile</span></div>
         <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #10b981"></span><span class="text-slate-400">PC / Endpoint</span></div>
         <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #8b5cf6"></span><span class="text-slate-400">Server</span></div>
         <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #ec4899"></span><span class="text-slate-400">Printer</span></div>
@@ -690,6 +698,8 @@
             <select id="nodeType" bind:value={editNodeType} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50">
               <option value="router">Router</option>
               <option value="switch">Switch</option>
+              <option value="wifi">Wifi AP</option>
+              <option value="mobile">Mobile Device</option>
               <option value="pc">PC / Endpoint</option>
               <option value="server">Server</option>
               <option value="printer">Printer</option>
@@ -751,6 +761,8 @@
             <select id="addNodeType" bind:value={addNodeType} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50">
               <option value="router">Router</option>
               <option value="switch">Switch</option>
+              <option value="wifi">Wifi AP</option>
+              <option value="mobile">Mobile Device</option>
               <option value="pc">PC / Endpoint</option>
               <option value="server">Server</option>
               <option value="printer">Printer</option>
