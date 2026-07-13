@@ -13,6 +13,7 @@
     ClearMap,
     RearrangeNodes
   } from '../../wailsjs/go/main/App';
+  import ScanDataModal from './ScanDataModal.svelte';
 
   // Import vis-network standalone
   import { Network, DataSet } from 'vis-network/standalone';
@@ -36,6 +37,7 @@
   let editNodeLabel = '';
   let editNodeType = 'unknown';
   let showEditModal = false;
+  let showScanDataModal = false;
 
   // Add custom node modal
   let showAddNodeModal = false;
@@ -682,7 +684,7 @@
   <!-- MODAL: Edit Node -->
   {#if showEditModal && selectedNode}
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+      <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-xl p-6 shadow-2xl relative">
         <button on:click={() => showEditModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
         <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4">Edit Network Node</h3>
@@ -721,6 +723,16 @@
             {#if selectedNode.reason}
               <div class="border-t border-slate-800/80 pt-1 mt-1 font-sans italic text-slate-500"><span class="text-slate-400 font-medium">AI Reason:</span> {selectedNode.reason}</div>
             {/if}
+          </div>
+
+          <div class="flex justify-between items-center bg-slate-900/40 p-2.5 rounded-xl border border-slate-700/40 mt-2 gap-4">
+            <span class="text-xxs text-slate-400 font-medium whitespace-nowrap">Check raw scan data (reference for changes):</span>
+            <button 
+              on:click={() => showScanDataModal = true} 
+              class="bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-800 text-indigo-300 text-xxs font-semibold px-2.5 py-1.5 rounded-lg transition duration-150 whitespace-nowrap"
+            >
+              View Scan JSON
+            </button>
           </div>
         </div>
 
@@ -882,4 +894,6 @@
       </div>
     </div>
   {/if}
+
+  <ScanDataModal show={showScanDataModal} node={selectedNode} onClose={() => showScanDataModal = false} />
 </div>

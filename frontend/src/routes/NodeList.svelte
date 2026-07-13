@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { GetNetworkMap, SaveNode, DeleteNode } from '../../wailsjs/go/main/App';
+  import ScanDataModal from './ScanDataModal.svelte';
 
   let nodes = [];
   let links = [];
@@ -16,6 +17,8 @@
   let showAddModal = false;
   let showEditModal = false;
   let showDeleteConfirmModal = false;
+  let showScanDataModal = false;
+  let selectedNodeForScan = null;
 
   // Form states
   let nodeForm = {
@@ -170,6 +173,11 @@
       manuallyEdited: true
     };
     showAddModal = true;
+  }
+
+  function openScanDataModal(node) {
+    selectedNodeForScan = node;
+    showScanDataModal = true;
   }
 
   function openEditModal(node) {
@@ -454,6 +462,15 @@
                   <td class="px-4 py-3 text-right">
                     <div class="flex justify-end gap-1.5">
                       <button 
+                        on:click={() => openScanDataModal(node)} 
+                        class="p-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600/20 hover:text-indigo-400 border border-slate-700 transition duration-150" 
+                        title="Scan JSON Data"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
+                        </svg>
+                      </button>
+                      <button 
                         on:click={() => openEditModal(node)} 
                         class="p-1.5 rounded-lg bg-slate-800 hover:bg-sky-600/20 hover:text-sky-400 border border-slate-700 transition duration-150" 
                         title="Edit Node"
@@ -729,6 +746,8 @@
       </div>
     </div>
   {/if}
+
+  <ScanDataModal show={showScanDataModal} node={selectedNodeForScan} onClose={() => { showScanDataModal = false; selectedNodeForScan = null; }} />
 </div>
 
 <style>
