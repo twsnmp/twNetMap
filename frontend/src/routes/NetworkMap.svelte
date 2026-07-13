@@ -59,6 +59,7 @@
 
   // Selected edge state
   let selectedEdgeId = null;
+  let pendingConnectNodeId = null;
 
   // Layout Settings
   let layoutMode = 'hierarchical'; // 'hierarchical' | 'force' | 'static'
@@ -359,6 +360,35 @@
 
         network.on('deselectEdge', () => {
           selectedEdgeId = null;
+        });
+
+        // Click handler -> quick connection with Shift key
+        network.on('click', (params) => {
+          const isKeyHeld = params.event && params.event.srcEvent && params.event.srcEvent.shiftKey;
+          
+          if (isKeyHeld && params.nodes.length > 0) {
+            const nodeId = params.nodes[0];
+            if (!pendingConnectNodeId) {
+              pendingConnectNodeId = nodeId;
+              const node = nodesDataSet.get(nodeId);
+              showSuccess(`Selected source node: ${node ? node.label : nodeId}. Press Shift + click target node to connect.`);
+            } else {
+              if (pendingConnectNodeId === nodeId) {
+                pendingConnectNodeId = null;
+                showSuccess('Connection cancelled.');
+              } else {
+                addLinkFrom = pendingConnectNodeId;
+                addLinkTo = nodeId;
+                showAddLinkModal = true;
+                pendingConnectNodeId = null;
+                network.unselectAll();
+              }
+            }
+          } else {
+            if (params.nodes.length > 0) {
+              pendingConnectNodeId = null;
+            }
+          }
         });
 
         // Double click handler -> edit node properties
