@@ -55,6 +55,10 @@
   let showClearConfirmModal = false;
   let showDeleteConfirmModal = false;
   let showRearrangeModal = false;
+  let showDeleteLinkConfirmModal = false;
+
+  // Selected edge state
+  let selectedEdgeId = null;
 
   // Layout Settings
   let layoutMode = 'hierarchical'; // 'hierarchical' | 'force' | 'static'
@@ -344,6 +348,19 @@
           }
         });
 
+        // Select handler -> track selected edge (line)
+        network.on('select', (params) => {
+          if (params.edges.length > 0 && params.nodes.length === 0) {
+            selectedEdgeId = params.edges[0];
+          } else {
+            selectedEdgeId = null;
+          }
+        });
+
+        network.on('deselectEdge', () => {
+          selectedEdgeId = null;
+        });
+
         // Double click handler -> edit node properties
         network.on('doubleClick', (params) => {
           if (params.nodes.length > 0) {
@@ -490,6 +507,45 @@
     }
   }
 
+  // Delete selected connection link
+  function handleDeleteLink() {
+    if (selectedEdgeId) {
+      showDeleteLinkConfirmModal = true;
+    }
+  }
+
+  async function confirmDeleteLink() {
+    if (!selectedEdgeId) return;
+    showDeleteLinkConfirmModal = false;
+    try {
+      await DeleteLink(selectedEdgeId);
+      await loadMapData();
+      selectedEdgeId = null;
+      if (network) {
+        network.unselectAll();
+      }
+      showSuccess('Connection link deleted.');
+    } catch (err) {
+      showError('Failed to delete connection link: ' + err);
+    }
+  }
+
+  let selectedEdgeInfo = null;
+  $: if (selectedEdgeId && edgesDataSet) {
+    const edge = edgesDataSet.get(selectedEdgeId);
+    if (edge) {
+      const fromNode = nodesDataSet.get(edge.from);
+      const toNode = nodesDataSet.get(edge.to);
+      selectedEdgeInfo = {
+        fromLabel: fromNode ? fromNode.label : edge.from,
+        toLabel: toNode ? toNode.label : edge.to,
+        type: edge.label || (edge.raw && edge.raw.type) || 'lan'
+      };
+    }
+  } else {
+    selectedEdgeInfo = null;
+  }
+
   // Clear Map
   function handleClearMap() {
     showClearConfirmModal = true;
@@ -580,6 +636,14 @@
         </button>
         <button on:click={() => showAddLinkModal = true} class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 transition duration-200">
           + Connect Nodes
+        </button>
+        <button 
+          on:click={handleDeleteLink} 
+          disabled={!selectedEdgeId}
+          class="disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 bg-rose-600/90 hover:bg-rose-600 text-white text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 disabled:border-slate-800/80 transition duration-200"
+          title="Select a connection line on the map to delete it"
+        >
+          Delete Link
         </button>
         <button on:click={handleClearMap} class="bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 hover:border-rose-900/50 transition duration-200">
           Clear Map
@@ -890,6 +954,29 @@
         <div class="flex justify-end gap-3">
           <button on:click={() => showDeleteConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
           <button on:click={confirmDeleteNode} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">Delete</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- MODAL: Confirm Delete Link -->
+  {#if showDeleteLinkConfirmModal && selectedEdgeInfo}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
+        <button on:click={() => showDeleteLinkConfirmModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
+        
+        <h3 class="text-lg font-bold text-rose-500 mb-2">Delete Connection Line?</h3>
+        <p class="text-slate-300 text-sm mb-6">
+          Are you sure you want to delete the connection between 
+          <span class="font-semibold text-slate-100">{selectedEdgeInfo.fromLabel}</span> 
+          and 
+          <span class="font-semibold text-slate-100">{selectedEdgeInfo.toLabel}</span>
+          ({selectedEdgeInfo.type})? This action cannot be undone.
+        </p>
+        
+        <div class="flex justify-end gap-3">
+          <button on:click={() => showDeleteLinkConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
+          <button on:click={confirmDeleteLink} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">Delete</button>
         </div>
       </div>
     </div>
