@@ -12,7 +12,8 @@
     RunAIInference,
     ClearMap,
     RearrangeNodes,
-    UpdateLink
+    UpdateLink,
+    ExportMap
   } from '../../wailsjs/go/main/App';
   import ScanDataModal from './ScanDataModal.svelte';
 
@@ -66,6 +67,8 @@
   let showDeleteConfirmModal = false;
   let showRearrangeModal = false;
   let showDeleteLinkConfirmModal = false;
+  let showExportModal = false;
+  let exporting = false;
 
   // Selected edge state
   let selectedEdgeId = null;
@@ -641,6 +644,31 @@
     selectedEdgeInfo = null;
   }
 
+  // Export Map
+  async function handleExport(format) {
+    showExportModal = false;
+    exporting = true;
+    try {
+      let pngBase64 = '';
+      if (format === 'png' || format === 'pdf' || format === 'excel') {
+        const canvas = container.querySelector('canvas');
+        if (canvas) {
+          pngBase64 = canvas.toDataURL('image/png');
+        }
+      }
+      
+      const savedPath = await ExportMap(format, pngBase64);
+      if (savedPath) {
+        showSuccess(`Successfully exported to: ${savedPath}`);
+      }
+    } catch (err) {
+      console.error(err);
+      showError(`Export failed: ${err}`);
+    } finally {
+      exporting = false;
+    }
+  }
+
   // Clear Map
   function handleClearMap() {
     showClearConfirmModal = true;
@@ -742,6 +770,9 @@
         </button>
         <button on:click={handleClearMap} class="bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 hover:border-rose-900/50 transition duration-200">
           Clear Map
+        </button>
+        <button on:click={() => showExportModal = true} disabled={exporting} class="bg-indigo-600/90 hover:bg-indigo-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-2 rounded-lg border border-indigo-700 transition duration-200" title="Export network map to file">
+          {exporting ? 'Exporting...' : 'Export Map'}
         </button>
         <button on:click={() => showRearrangeModal = true} class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 transition duration-200" title="Auto Layout (Rearrange)">
           Auto Layout
@@ -1135,6 +1166,57 @@
         <div class="flex justify-end gap-3">
           <button on:click={() => showDeleteLinkConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
           <button on:click={confirmDeleteLink} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">Delete</button>
+        </div>
+      </div>
+    </div>
+  {/if}
+
+  <!-- MODAL: Export Map -->
+  {#if showExportModal}
+    <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+      <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative">
+        <button on:click={() => showExportModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
+        
+        <h3 class="text-lg font-bold text-sky-400 mb-2">Export Network Map</h3>
+        <p class="text-slate-300 text-sm mb-6">Select the format you want to export the network map to:</p>
+        
+        <div class="grid grid-cols-2 gap-3 mb-6">
+          <button on:click={() => handleExport('png')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
+            <span class="text-sm font-semibold text-slate-100">PNG Image</span>
+            <span class="text-xs text-slate-400">Save as a standard image file</span>
+          </button>
+          <button on:click={() => handleExport('svg')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
+            <span class="text-sm font-semibold text-slate-100">SVG Image</span>
+            <span class="text-xs text-slate-400">Vector image for scaling & editing</span>
+          </button>
+          <button on:click={() => handleExport('pdf')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
+            <span class="text-sm font-semibold text-slate-100">PDF Document</span>
+            <span class="text-xs text-slate-400">Export map as a PDF page</span>
+          </button>
+          <button on:click={() => handleExport('drawio')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
+            <span class="text-sm font-semibold text-slate-100">Draw.io (.drawio)</span>
+            <span class="text-xs text-slate-400">Open in diagrams.net for editing</span>
+          </button>
+          <button on:click={() => handleExport('json_map')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
+            <span class="text-sm font-semibold text-slate-100">Map JSON</span>
+            <span class="text-xs text-slate-400">Export unique layout JSON data</span>
+          </button>
+          <button on:click={() => handleExport('json_scan')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
+            <span class="text-sm font-semibold text-slate-100">Scan JSON</span>
+            <span class="text-xs text-slate-400">Raw IP/MAC scan results JSON</span>
+          </button>
+          <button on:click={() => handleExport('csv')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
+            <span class="text-sm font-semibold text-slate-100">Node List (CSV)</span>
+            <span class="text-xs text-slate-400">Export node details in CSV format</span>
+          </button>
+          <button on:click={() => handleExport('excel')} class="flex flex-col items-start p-3 bg-indigo-950/30 hover:bg-indigo-900/50 border border-indigo-800/50 rounded-xl transition duration-150 text-left">
+            <span class="text-sm font-semibold text-indigo-200">EXCEL Document</span>
+            <span class="text-xs text-indigo-400">Map Image + Node list sheets</span>
+          </button>
+        </div>
+        
+        <div class="flex justify-end">
+          <button on:click={() => showExportModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
         </div>
       </div>
     </div>

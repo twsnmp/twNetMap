@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -10,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -18,6 +21,9 @@ import (
 	"twNetMap/backend/ai"
 	"twNetMap/backend/datastore"
 	"twNetMap/backend/scanner"
+
+	"github.com/signintech/gopdf"
+	"github.com/xuri/excelize/v2"
 )
 
 // App struct
@@ -850,4 +856,419 @@ func (a *App) ClearAllHistory() error {
 	}
 	return a.db.ClearAllHistory()
 }
+
+// ExportMap exports the map or data to a file.
+func (a *App) ExportMap(format string, pngBase64 string) (string, error) {
+	if a.db == nil {
+		return "", fmt.Errorf("database not initialized")
+	}
+
+	var title string
+	var defaultFilename string
+	var filters []wailsruntime.FileFilter
+
+	switch format {
+	case "png":
+		title = "Export as PNG Image"
+		defaultFilename = "network_map.png"
+		filters = []wailsruntime.FileFilter{{DisplayName: "PNG Image (*.png)", Pattern: "*.png"}}
+	case "svg":
+		title = "Export as SVG Image"
+		defaultFilename = "network_map.svg"
+		filters = []wailsruntime.FileFilter{{DisplayName: "SVG Image (*.svg)", Pattern: "*.svg"}}
+	case "pdf":
+		title = "Export as PDF Document"
+		defaultFilename = "network_map.pdf"
+		filters = []wailsruntime.FileFilter{{DisplayName: "PDF Document (*.pdf)", Pattern: "*.pdf"}}
+	case "drawio":
+		title = "Export as Draw.io Diagram"
+		defaultFilename = "network_map.drawio"
+		filters = []wailsruntime.FileFilter{{DisplayName: "Draw.io Diagram (*.drawio)", Pattern: "*.drawio"}}
+	case "json_map":
+		title = "Export Map Data (JSON)"
+		defaultFilename = "network_map_data.json"
+		filters = []wailsruntime.FileFilter{{DisplayName: "JSON Map Data (*.json)", Pattern: "*.json"}}
+	case "json_scan":
+		title = "Export Scan Data (JSON)"
+		defaultFilename = "scan_results.json"
+		filters = []wailsruntime.FileFilter{{DisplayName: "JSON Scan Data (*.json)", Pattern: "*.json"}}
+	case "csv":
+		title = "Export Node List (CSV)"
+		defaultFilename = "node_list.csv"
+		filters = []wailsruntime.FileFilter{{DisplayName: "CSV Node List (*.csv)", Pattern: "*.csv"}}
+	case "excel":
+		title = "Export Excel Document"
+		defaultFilename = "network_map.xlsx"
+		filters = []wailsruntime.FileFilter{{DisplayName: "Excel Document (*.xlsx)", Pattern: "*.xlsx"}}
+	default:
+		return "", fmt.Errorf("unsupported format: %s", format)
+	}
+
+	selectedFile, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
+		Title:           title,
+		DefaultFilename: defaultFilename,
+		Filters:         filters,
+	})
+	if err != nil {
+		return "", err
+	}
+	if selectedFile == "" {
+		return "", nil // user cancelled
+	}
+
+	// 1. Get database records
+	nodes, err := a.db.GetNodes()
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch nodes: %v", err)
+	}
+	links, err := a.db.GetLinks()
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch links: %v", err)
+	}
+
+	// 2. Decode PNG bytes if provided and needed
+	var pngBytes []byte
+	if pngBase64 != "" {
+		parts := strings.SplitN(pngBase64, ",", 2)
+		base64Data := parts[0]
+		if len(parts) > 1 {
+			base64Data = parts[1]
+		}
+		decoded, err := base64.StdEncoding.DecodeString(base64Data)
+		if err != nil {
+			return "", fmt.Errorf("failed to decode base64 PNG: %v", err)
+		}
+		pngBytes = decoded
+	}
+
+	// 3. Export formatting logic
+	switch format {
+	case "png":
+		if len(pngBytes) == 0 {
+			return "", fmt.Errorf("no PNG data provided")
+		}
+		if err := os.WriteFile(selectedFile, pngBytes, 0644); err != nil {
+			return "", err
+		}
+
+	case "svg":
+		minX, maxX := 0.0, 800.0
+		minY, maxY := 0.0, 600.0
+		if len(nodes) > 0 {
+			minX = nodes[0].X
+			maxX = nodes[0].X
+			minY = nodes[0].Y
+			maxY = nodes[0].Y
+			for _, n := range nodes {
+				if n.X < minX {
+					minX = n.X
+				}
+				if n.X > maxX {
+					maxX = n.X
+				}
+				if n.Y < minY {
+					minY = n.Y
+				}
+				if n.Y > maxY {
+					maxY = n.Y
+				}
+			}
+		}
+		margin := 100.0
+		minX -= margin
+		minY -= margin
+		maxX += margin
+		maxY += margin
+		width := maxX - minX
+		height := maxY - minY
+
+		var svgBuf bytes.Buffer
+		svgBuf.WriteString(fmt.Sprintf(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="%f %f %f %f" width="100%%" height="100%%" style="background-color: #f8fafc;">`, minX, minY, width, height))
+		svgBuf.WriteString(`<defs><marker id="arrow" viewBox="0 0 10 10" refX="20" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#94a3b8"/></marker></defs>`)
+
+		nodeMap := make(map[string]*datastore.Node)
+		for _, n := range nodes {
+			nodeMap[n.ID] = n
+		}
+
+		for _, l := range links {
+			fromNode, ok1 := nodeMap[l.From]
+			toNode, ok2 := nodeMap[l.To]
+			if ok1 && ok2 {
+				strokeWidth := "2"
+				dashArray := ""
+				if l.Style == "thin" {
+					strokeWidth = "1"
+				} else if l.Style == "thick" {
+					strokeWidth = "4"
+				} else if l.Style == "dotted" {
+					strokeWidth = "2"
+					dashArray = `stroke-dasharray="4,4"`
+				}
+				svgBuf.WriteString(fmt.Sprintf(`<line x1="%f" y1="%f" x2="%f" y2="%f" stroke="#94a3b8" stroke-width="%s" %s />`,
+					fromNode.X, fromNode.Y, toNode.X, toNode.Y, strokeWidth, dashArray))
+
+				midX := (fromNode.X + toNode.X) / 2
+				midY := (fromNode.Y + toNode.Y) / 2
+				if l.Type != "" {
+					svgBuf.WriteString(fmt.Sprintf(`<text x="%f" y="%f" text-anchor="middle" font-size="10" fill="#64748b">%s</text>`, midX, midY-5, l.Type))
+				}
+			}
+		}
+
+		for _, n := range nodes {
+			color := "#64748b"
+			switch n.Type {
+			case "router":
+				color = "#ef4444"
+			case "switch":
+				color = "#10b981"
+			case "pc":
+				color = "#3b82f6"
+			case "server":
+				color = "#f59e0b"
+			case "printer":
+				color = "#8b5cf6"
+			}
+			svgBuf.WriteString(fmt.Sprintf(`<circle cx="%f" cy="%f" r="24" fill="%s" stroke="#ffffff" stroke-width="3" />`, n.X, n.Y, color))
+
+			initial := "U"
+			if len(n.Type) > 0 {
+				initial = strings.ToUpper(n.Type[:1])
+			}
+			svgBuf.WriteString(fmt.Sprintf(`<text x="%f" y="%f" dy="6" text-anchor="middle" font-size="16" font-weight="bold" fill="#ffffff">%s</text>`, n.X, n.Y, initial))
+			svgBuf.WriteString(fmt.Sprintf(`<text x="%f" y="%f" text-anchor="middle" font-size="11" font-weight="600" fill="#1e293b">%s</text>`, n.X, n.Y+38, n.Label))
+			if n.IP != "" && n.IP != n.Label {
+				svgBuf.WriteString(fmt.Sprintf(`<text x="%f" y="%f" text-anchor="middle" font-size="9" fill="#64748b">%s</text>`, n.X, n.Y+50, n.IP))
+			}
+		}
+		svgBuf.WriteString(`</svg>`)
+		if err := os.WriteFile(selectedFile, svgBuf.Bytes(), 0644); err != nil {
+			return "", err
+		}
+
+	case "pdf":
+		if len(pngBytes) == 0 {
+			return "", fmt.Errorf("no PNG data provided")
+		}
+		tmpFile, err := os.CreateTemp("", "twNetMap-*.png")
+		if err != nil {
+			return "", err
+		}
+		defer os.Remove(tmpFile.Name())
+		if _, err := tmpFile.Write(pngBytes); err != nil {
+			return "", err
+		}
+		tmpFile.Close()
+
+		pdf := gopdf.GoPdf{}
+		pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4})
+		pdf.AddPage()
+
+		// PDF Width: 595, Height: 842. Margin: 20
+		err = pdf.Image(tmpFile.Name(), 20, 20, &gopdf.Rect{W: 555, H: 416})
+		if err != nil {
+			return "", fmt.Errorf("failed to add image to PDF: %v", err)
+		}
+
+		if err := pdf.WritePdf(selectedFile); err != nil {
+			return "", err
+		}
+
+	case "drawio":
+		minX, minY := 0.0, 0.0
+		if len(nodes) > 0 {
+			minX = nodes[0].X
+			minY = nodes[0].Y
+			for _, n := range nodes {
+				if n.X < minX {
+					minX = n.X
+				}
+				if n.Y < minY {
+					minY = n.Y
+				}
+			}
+		}
+
+		var drawioBuf bytes.Buffer
+		drawioBuf.WriteString(`<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="Electron" modified="2026-07-14T00:00:00.000Z" agent="5.0" version="20.0.0" type="device">
+  <diagram id="netmap" name="Network Map">
+    <mxGraphModel dx="1000" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />`)
+
+		for _, n := range nodes {
+			x := n.X - minX + 50.0
+			y := n.Y - minY + 50.0
+			fillColor := "#F5F5F5"
+			strokeColor := "#666666"
+			switch n.Type {
+			case "router":
+				fillColor = "#F8CECC"
+				strokeColor = "#B85450"
+			case "switch":
+				fillColor = "#D5E8D4"
+				strokeColor = "#82B366"
+			case "pc":
+				fillColor = "#DAE8FC"
+				strokeColor = "#6C8EBF"
+			case "server":
+				fillColor = "#FFF2CC"
+				strokeColor = "#D6B656"
+			case "printer":
+				fillColor = "#E1D5E7"
+				strokeColor = "#9673A6"
+			}
+			value := fmt.Sprintf("%s\n%s", n.Label, n.IP)
+			value = strings.ReplaceAll(value, "\n", "&lt;br/&gt;")
+			drawioBuf.WriteString(fmt.Sprintf(`
+        <mxCell id="%s" value="%s" style="rounded=1;whiteSpace=wrap;html=1;fillColor=%s;strokeColor=%s;fontStyle=1" vertex="1" parent="1">
+          <mxGeometry x="%f" y="%f" width="100" height="50" as="geometry" />
+        </mxCell>`, n.ID, value, fillColor, strokeColor, x, y))
+		}
+
+		for _, l := range links {
+			style := "endArrow=none;html=1;rounded=0;"
+			if l.Style == "thin" {
+				style += "strokeWidth=1;"
+			} else if l.Style == "thick" {
+				style += "strokeWidth=4;"
+			} else if l.Style == "dotted" {
+				style += "strokeWidth=2;dashed=1;"
+			} else {
+				style += "strokeWidth=2;"
+			}
+			drawioBuf.WriteString(fmt.Sprintf(`
+        <mxCell id="%s" value="%s" style="%s" edge="1" parent="1" source="%s" target="%s">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>`, l.ID, l.Type, style, l.From, l.To))
+		}
+
+		drawioBuf.WriteString(`
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>`)
+		if err := os.WriteFile(selectedFile, drawioBuf.Bytes(), 0644); err != nil {
+			return "", err
+		}
+
+	case "json_map":
+		data := &datastore.NodeLinkData{Nodes: nodes, Links: links}
+		indent, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(selectedFile, indent, 0644); err != nil {
+			return "", err
+		}
+
+	case "json_scan":
+		var scanResults []*scanner.ScanResult
+		a.mu.Lock()
+		scanResults = a.latestScanResults
+		a.mu.Unlock()
+
+		if len(scanResults) == 0 {
+			// Try to restore from DB if memory is empty
+			if data, err := a.db.GetLatestScanResults(); err == nil && len(data) > 0 {
+				_ = json.Unmarshal(data, &scanResults)
+			}
+		}
+
+		indent, err := json.MarshalIndent(scanResults, "", "  ")
+		if err != nil {
+			return "", err
+		}
+		if err := os.WriteFile(selectedFile, indent, 0644); err != nil {
+			return "", err
+		}
+
+	case "csv":
+		var buf bytes.Buffer
+		writer := csv.NewWriter(&buf)
+		writer.Write([]string{"ID", "IP", "MAC", "Vendor", "Label", "Type", "SysName", "SysDesc", "X", "Y", "ManuallyEdited"})
+		for _, n := range nodes {
+			writer.Write([]string{
+				n.ID,
+				n.IP,
+				n.MAC,
+				n.Vendor,
+				n.Label,
+				n.Type,
+				n.SysName,
+				n.SysDesc,
+				fmt.Sprintf("%f", n.X),
+				fmt.Sprintf("%f", n.Y),
+				fmt.Sprintf("%t", n.ManuallyEdited),
+			})
+		}
+		writer.Flush()
+		if err := os.WriteFile(selectedFile, buf.Bytes(), 0644); err != nil {
+			return "", err
+		}
+
+	case "excel":
+		xlsx := excelize.NewFile()
+		xlsx.SetSheetName("Sheet1", "Map Image")
+
+		if len(pngBytes) > 0 {
+			tmpFile, err := os.CreateTemp("", "twNetMap-*.png")
+			if err != nil {
+				return "", err
+			}
+			defer os.Remove(tmpFile.Name())
+			if _, err := tmpFile.Write(pngBytes); err != nil {
+				return "", err
+			}
+			tmpFile.Close()
+
+			err = xlsx.AddPicture("Map Image", "B2", tmpFile.Name(), &excelize.GraphicOptions{
+				ScaleX: 0.8,
+				ScaleY: 0.8,
+			})
+			if err != nil {
+				return "", fmt.Errorf("failed to add image to Excel: %v", err)
+			}
+		}
+
+		xlsx.NewSheet("Node List")
+
+		headerStyle, _ := xlsx.NewStyle(&excelize.Style{
+			Font: &excelize.Font{Bold: true, Color: "FFFFFF"},
+			Fill: excelize.Fill{Type: "pattern", Color: []string{"4F81BD"}, Pattern: 1},
+		})
+
+		headers := []string{"ID", "IP", "MAC", "Vendor", "Label", "Type", "SysName", "SysDesc", "X", "Y", "ManuallyEdited"}
+		for colIdx, h := range headers {
+			cell, _ := excelize.CoordinatesToCellName(colIdx+1, 1)
+			xlsx.SetCellValue("Node List", cell, h)
+			xlsx.SetCellStyle("Node List", cell, cell, headerStyle)
+		}
+
+		for rIdx, n := range nodes {
+			row := rIdx + 2
+			xlsx.SetCellValue("Node List", fmt.Sprintf("A%d", row), n.ID)
+			xlsx.SetCellValue("Node List", fmt.Sprintf("B%d", row), n.IP)
+			xlsx.SetCellValue("Node List", fmt.Sprintf("C%d", row), n.MAC)
+			xlsx.SetCellValue("Node List", fmt.Sprintf("D%d", row), n.Vendor)
+			xlsx.SetCellValue("Node List", fmt.Sprintf("E%d", row), n.Label)
+			xlsx.SetCellValue("Node List", fmt.Sprintf("F%d", row), n.Type)
+			xlsx.SetCellValue("Node List", fmt.Sprintf("G%d", row), n.SysName)
+			xlsx.SetCellValue("Node List", fmt.Sprintf("H%d", row), n.SysDesc)
+			xlsx.SetCellValue("Node List", fmt.Sprintf("I%d", row), n.X)
+			xlsx.SetCellValue("Node List", fmt.Sprintf("J%d", row), n.Y)
+			xlsx.SetCellValue("Node List", fmt.Sprintf("K%d", row), n.ManuallyEdited)
+		}
+
+		if err := xlsx.SaveAs(selectedFile); err != nil {
+			return "", err
+		}
+	}
+
+	return selectedFile, nil
+}
+
 
