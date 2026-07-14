@@ -39,3 +39,8 @@ frontend/dist/
 frontend/node_modules/
 wailsjs/
 
+# Local build artifacts
+dist/
+twNetMap
+
+

@@ -1,0 +1,113 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.platform }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows/amd64
+            os: windows-latest
+            artifact_name: twNetMap-windows-amd64.zip
+            tags: ""
+          - platform: linux/amd64
+            os: ubuntu-24.04
+            artifact_name: twNetMap-linux-amd64.tar.gz
+            tags: "-tags webkit2_41"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev build-essential pkg-config
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.12.0
+
+      - name: Generate Wails Bindings
+        shell: bash
+        run: |
+          mkdir -p frontend/dist
+          touch frontend/dist/index.html
+          wails generate module
+
+      - name: Build Frontend
+        shell: bash
+        run: |
+          cd frontend
+          npm install
+          npm run build
+
+      - name: Build Wails App
+        shell: bash
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.1.0")
+          COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+          BUILD_VERSION="${VERSION}(${COMMIT})"
+          wails build -platform ${{ matrix.platform }} -clean -s ${{ matrix.tags }} -ldflags "-X main.version=${BUILD_VERSION}"
+
+      - name: Package Release (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          # Compress the compiled executable from build/bin into a zip
+          Compress-Archive -Path build/bin/twNetMap.exe -DestinationPath ${{ matrix.artifact_name }}
+
+      - name: Package Release (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          # Compress the compiled binary from build/bin into a tar.gz
+          tar -czvf ${{ matrix.artifact_name }} -C build/bin twNetMap
+
+      - name: Upload artifact for release job
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: ${{ matrix.artifact_name }}
+          retention-days: 1
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-artifacts/*
+          draft: false
+          prerelease: false
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || 'v0.0.0-draft' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -35,11 +35,14 @@ type App struct {
 	scanCancel        context.CancelFunc
 	scanning          bool
 	aiRunning         bool
+	version           string
 }
 
 // NewApp creates a new App application struct
-func NewApp() *App {
-	return &App{}
+func NewApp(version string) *App {
+	return &App{
+		version: version,
+	}
 }
 
 // startup is called when the app starts. The context is saved
@@ -85,7 +88,7 @@ func (a *App) shutdown(ctx context.Context) {
 
 // GetVersion returns application version
 func (a *App) GetVersion() string {
-	return "0.1.0"
+	return a.version
 }
 
 // GetConfig retrieves the current settings.

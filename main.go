@@ -11,9 +11,17 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+// version is the application version string.
+// It is set at build time via:
+//
+//	-ldflags "-X main.version=v1.2.0-abc1234"
+//
+// If not set, it defaults to "v0.1.0".
+var version = "v0.1.0"
+
 func main() {
 	// Create an instance of the app structure
-	app := NewApp()
+	app := NewApp(version)
 
 	// Create application with options
 	err := wails.Run(&options.App{
