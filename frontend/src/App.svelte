@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { GetConfig } from '../wailsjs/go/main/App';
+  import { currentLanguage, t } from './i18n.js';
   
   import NetworkMap from './routes/NetworkMap.svelte';
   import ScanSettings from './routes/ScanSettings.svelte';
@@ -26,6 +27,7 @@
       const cfg = await GetConfig();
       if (cfg) {
         config = { ...config, ...cfg };
+        currentLanguage.set(config.Language || 'auto');
       }
     } catch (err) {
       console.error('Failed to load initial config:', err);
@@ -37,6 +39,7 @@
       const cfg = await GetConfig();
       if (cfg) {
         config = { ...config, ...cfg };
+        currentLanguage.set(config.Language || 'auto');
       }
     } catch (err) {
       console.error('Failed to refresh config:', err);
@@ -56,7 +59,7 @@
       </div>
       <div>
         <h1 class="text-sm font-bold tracking-wide uppercase bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">twNetMap</h1>
-        <p class="text-xxs text-slate-500 font-semibold tracking-wider">TWSNMP AI-Topology Suite</p>
+        <p class="text-xxs text-slate-500 font-semibold tracking-wider">{$t('brandSub')}</p>
       </div>
     </div>
 
@@ -66,25 +69,25 @@
         on:click={() => activeTab = 'dashboard'} 
         class={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition duration-150 ${activeTab === 'dashboard' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'text-slate-400 hover:text-slate-200 border border-transparent'}`}
       >
-        Network Map
+        {$t('tabNetworkMap')}
       </button>
       <button 
         on:click={() => { activeTab = 'nodes'; }} 
         class={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition duration-150 ${activeTab === 'nodes' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'text-slate-400 hover:text-slate-200 border border-transparent'}`}
       >
-        Node List
+        {$t('tabNodeList')}
       </button>
       <button 
         on:click={() => { activeTab = 'scan'; handleConfigChanged(); }} 
         class={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition duration-150 ${activeTab === 'scan' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'text-slate-400 hover:text-slate-200 border border-transparent'}`}
       >
-        Scan Settings
+        {$t('tabScanSettings')}
       </button>
       <button 
         on:click={() => { activeTab = 'ai'; handleConfigChanged(); }} 
         class={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold tracking-wide transition duration-150 ${activeTab === 'ai' ? 'bg-sky-500/10 text-sky-400 border border-sky-500/20' : 'text-slate-400 hover:text-slate-200 border border-transparent'}`}
       >
-        AI Settings
+        {$t('tabAISettings')}
       </button>
     </nav>
 

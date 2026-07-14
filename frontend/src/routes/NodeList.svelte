@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { GetNetworkMap, SaveNode, DeleteNode } from '../../wailsjs/go/main/App';
   import ScanDataModal from './ScanDataModal.svelte';
+  import { t } from '../i18n.js';
 
   let nodes = [];
   let links = [];
@@ -47,7 +48,7 @@
         links = data.links || [];
       }
     } catch (err) {
-      showError('Failed to load nodes: ' + err.message || err);
+      showError($t('toastNodesLoadFailed', { err: err.message || err }));
     } finally {
       loading = false;
     }
@@ -201,7 +202,7 @@
       
       // Check if duplicate
       if (nodes.some(n => n.id === id)) {
-        throw new Error(`A node with ID/IP/MAC '${id}' already exists.`);
+        throw new Error($t('toastNodeExists', { id }));
       }
 
       const nodeToSave = {
@@ -213,10 +214,10 @@
 
       await SaveNode(nodeToSave);
       showAddModal = false;
-      showSuccess('Node added successfully!');
+      showSuccess($t('toastNodeAdded'));
       await loadData();
     } catch (err) {
-      showError(err.message || 'Failed to add node');
+      showError(err.message || $t('toastNodeAddFailed', { err: err.message || err }));
     }
   }
 
@@ -230,10 +231,10 @@
         manuallyEdited: true
       });
       showEditModal = false;
-      showSuccess('Node updated successfully!');
+      showSuccess($t('toastNodeUpdated'));
       await loadData();
     } catch (err) {
-      showError(err.message || 'Failed to update node');
+      showError(err.message || $t('toastNodeUpdateFailed', { err: err.message || err }));
     }
   }
 
@@ -242,11 +243,11 @@
     try {
       await DeleteNode(nodeToDelete.id);
       showDeleteConfirmModal = false;
-      showSuccess('Node deleted successfully!');
+      showSuccess($t('toastNodeDeleted'));
       nodeToDelete = null;
       await loadData();
     } catch (err) {
-      showError(err.message || 'Failed to delete node');
+      showError(err.message || $t('toastNodeDeleteFailed', { err: err.message || err }));
     }
   }
 
@@ -263,12 +264,14 @@
 
   function formatType(type) {
     switch (type) {
-      case 'router': return 'Router';
-      case 'switch': return 'Switch';
-      case 'pc': return 'PC / Endpoint';
-      case 'server': return 'Server';
-      case 'printer': return 'Printer';
-      default: return 'Unknown';
+      case 'router': return $t('type_router');
+      case 'switch': return $t('type_switch');
+      case 'wifi': return $t('type_wifi');
+      case 'mobile': return $t('type_mobile');
+      case 'pc': return $t('type_pc');
+      case 'server': return $t('type_server');
+      case 'printer': return $t('type_printer');
+      default: return $t('type_unknown');
     }
   }
 </script>
@@ -299,7 +302,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
         </svg>
-        Add Node
+        {$t('addNodeBtn')}
       </button>
     </div>
 
@@ -314,7 +317,7 @@
         <input
           type="text"
           bind:value={searchQuery}
-          placeholder="Search by IP, MAC, Label, Vendor, or SNMP properties..."
+          placeholder={$t('searchPlaceholder')}
           class="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-2.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition duration-200"
         />
       </div>
@@ -324,15 +327,15 @@
           bind:value={filterType}
           class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-300 focus:outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500 transition duration-200"
         >
-          <option value="all">All Devices</option>
-          <option value="router">Routers</option>
-          <option value="switch">Switches</option>
-          <option value="wifi">Wifi APs</option>
-          <option value="mobile">Mobile Devices</option>
-          <option value="pc">PCs / Endpoints</option>
-          <option value="server">Servers</option>
-          <option value="printer">Printers</option>
-          <option value="unknown">Unknown</option>
+          <option value="all">{$t('filterAll')}</option>
+          <option value="router">{$t('filterRouters')}</option>
+          <option value="switch">{$t('filterSwitches')}</option>
+          <option value="wifi">{$t('filterWifi')}</option>
+          <option value="mobile">{$t('filterMobile')}</option>
+          <option value="pc">{$t('filterPCs')}</option>
+          <option value="server">{$t('filterServers')}</option>
+          <option value="printer">{$t('filterPrinters')}</option>
+          <option value="unknown">{$t('filterUnknown')}</option>
         </select>
       </div>
     </div>
@@ -341,15 +344,15 @@
     {#if loading}
       <div class="flex flex-col items-center justify-center py-20 text-slate-500 gap-3">
         <div class="w-8 h-8 rounded-full border-2 border-sky-500 border-t-transparent animate-spin"></div>
-        <p class="text-xs">Loading node data...</p>
+        <p class="text-xs">{$t('loadingNodeData')}</p>
       </div>
     {:else if filteredNodes.length === 0}
       <div class="flex flex-col items-center justify-center py-16 bg-slate-900/40 rounded-2xl border border-slate-800/80 text-center px-4">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-10 h-10 text-slate-600 mb-3">
           <path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
         </svg>
-        <h3 class="text-sm font-bold text-slate-400">No nodes found</h3>
-        <p class="text-xxs text-slate-500 mt-1 max-w-sm">No device matches the search query or no scan results exist yet. Run an Active Scan or add nodes manually.</p>
+        <h3 class="text-sm font-bold text-slate-400">{$t('noNodesFound')}</h3>
+        <p class="text-xxs text-slate-500 mt-1 max-w-sm">{$t('noNodesDesc')}</p>
       </div>
     {:else}
       <div class="w-full bg-slate-900 border border-slate-800 rounded-xl overflow-hidden shadow-xl">
@@ -359,7 +362,7 @@
               <tr>
                 <th class="px-4 py-3 cursor-pointer hover:text-slate-200 transition duration-150" on:click={() => toggleSort('label')}>
                   <div class="flex items-center gap-1">
-                    Label
+                    {$t('colLabel')}
                     {#if sortBy === 'label'}
                       <span class="text-sky-400 text-[10px]">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                     {/if}
@@ -367,7 +370,7 @@
                 </th>
                 <th class="px-4 py-3 cursor-pointer hover:text-slate-200 transition duration-150" on:click={() => toggleSort('ip')}>
                   <div class="flex items-center gap-1">
-                    IP Address
+                    {$t('colIP')}
                     {#if sortBy === 'ip'}
                       <span class="text-sky-400 text-[10px]">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                     {/if}
@@ -375,7 +378,7 @@
                 </th>
                 <th class="px-4 py-3 cursor-pointer hover:text-slate-200 transition duration-150" on:click={() => toggleSort('mac')}>
                   <div class="flex items-center gap-1">
-                    MAC Address
+                    {$t('colMAC')}
                     {#if sortBy === 'mac'}
                       <span class="text-sky-400 text-[10px]">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                     {/if}
@@ -383,7 +386,7 @@
                 </th>
                 <th class="px-4 py-3 cursor-pointer hover:text-slate-200 transition duration-150" on:click={() => toggleSort('vendor')}>
                   <div class="flex items-center gap-1">
-                    Vendor
+                    {$t('colVendor')}
                     {#if sortBy === 'vendor'}
                       <span class="text-sky-400 text-[10px]">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                     {/if}
@@ -391,7 +394,7 @@
                 </th>
                 <th class="px-4 py-3 cursor-pointer hover:text-slate-200 transition duration-150" on:click={() => toggleSort('type')}>
                   <div class="flex items-center gap-1">
-                    Device Type
+                    {$t('colType')}
                     {#if sortBy === 'type'}
                       <span class="text-sky-400 text-[10px]">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                     {/if}
@@ -399,7 +402,7 @@
                 </th>
                 <th class="px-4 py-3 cursor-pointer hover:text-slate-200 transition duration-150" on:click={() => toggleSort('sysName')}>
                   <div class="flex items-center gap-1">
-                    SNMP Name / Info
+                    {$t('colSNMP')}
                     {#if sortBy === 'sysName'}
                       <span class="text-sky-400 text-[10px]">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                     {/if}
@@ -407,13 +410,13 @@
                 </th>
                 <th class="px-4 py-3 cursor-pointer hover:text-slate-200 transition duration-150" on:click={() => toggleSort('reason')}>
                   <div class="flex items-center gap-1">
-                    Discovery / Source
+                    {$t('colDiscovery')}
                     {#if sortBy === 'reason'}
                       <span class="text-sky-400 text-[10px]">{sortOrder === 'asc' ? '▲' : '▼'}</span>
                     {/if}
                   </div>
                 </th>
-                <th class="px-4 py-3 text-right">Actions</th>
+                <th class="px-4 py-3 text-right">{$t('colActions')}</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-800/50 text-xs text-slate-300">
@@ -451,7 +454,7 @@
                     {:else if node.sysDesc}
                       <span class="text-xxs">{node.sysDesc}</span>
                     {:else}
-                      <span class="text-slate-600 italic">No SNMP info</span>
+                      <span class="text-slate-600 italic">{$t('noSnmpInfo')}</span>
                     {/if}
                   </td>
                   <!-- Reason -->
@@ -464,7 +467,7 @@
                       <button 
                         on:click={() => openScanDataModal(node)} 
                         class="p-1.5 rounded-lg bg-slate-800 hover:bg-indigo-600/20 hover:text-indigo-400 border border-slate-700 transition duration-150" 
-                        title="Scan JSON Data"
+                        title={$t('btnScanData')}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
                           <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" />
@@ -473,7 +476,7 @@
                       <button 
                         on:click={() => openEditModal(node)} 
                         class="p-1.5 rounded-lg bg-slate-800 hover:bg-sky-600/20 hover:text-sky-400 border border-slate-700 transition duration-150" 
-                        title="Edit Node"
+                        title={$t('btnEdit')}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
                           <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L6.83 18.5a4.5 4.5 0 0 1-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 0 1 1.13-1.897L16.863 4.487Zm0 0L19.5 7.125" />
@@ -482,7 +485,7 @@
                       <button 
                         on:click={() => openDeleteConfirm(node)} 
                         class="p-1.5 rounded-lg bg-slate-800 hover:bg-rose-600/20 hover:text-rose-400 border border-slate-700 transition duration-150" 
-                        title="Delete Node"
+                        title={$t('btnDelete')}
                       >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
                           <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
@@ -496,9 +499,9 @@
           </table>
         </div>
         <div class="px-4 py-3 bg-slate-800/10 border-t border-slate-800 text-xxs text-slate-500 flex justify-between select-none">
-          <span>Showing {filteredNodes.length} of {nodes.length} nodes</span>
+          <span>{$t('showingNodesCount', { current: filteredNodes.length, total: nodes.length })}</span>
           {#if searchQuery || filterType !== 'all'}
-            <button on:click={() => { searchQuery = ''; filterType = 'all'; }} class="text-sky-500 hover:text-sky-400">Clear filters</button>
+            <button on:click={() => { searchQuery = ''; filterType = 'all'; }} class="text-sky-500 hover:text-sky-400">{$t('clearFilters')}</button>
           {/if}
         </div>
       </div>
@@ -511,64 +514,64 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative animate-scale-up">
         <button on:click={() => showAddModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4 font-sans">Add Custom Node</h3>
+        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4 font-sans">{$t('addCustomNode')}</h3>
         
         <form on:submit|preventDefault={handleAddNode} class="space-y-4">
           <div>
-            <label for="addNodeIP" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">IP Address <span class="text-rose-500">*</span></label>
+            <label for="addNodeIP" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('addNodeIPRequired')}</label>
             <input 
               type="text" 
               id="addNodeIP" 
               bind:value={nodeForm.ip} 
-              placeholder="e.g. 192.168.1.15" 
+              placeholder={$t('ipAddressPlaceholder')} 
               required
               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" 
             />
           </div>
 
           <div>
-            <label for="addNodeMAC" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">MAC Address</label>
+            <label for="addNodeMAC" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('addNodeMAC')}</label>
             <input 
               type="text" 
               id="addNodeMAC" 
               bind:value={nodeForm.mac} 
-              placeholder="e.g. 00:11:22:33:44:55" 
+              placeholder={$t('macAddressPlaceholder')} 
               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" 
             />
           </div>
 
           <div>
-            <label for="addNodeLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Display Label</label>
+            <label for="addNodeLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('addNodeLabel')}</label>
             <input 
               type="text" 
               id="addNodeLabel" 
               bind:value={nodeForm.label} 
-              placeholder="Defaults to IP Address" 
+              placeholder={$t('addNodeLabelPlaceholder')} 
               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" 
             />
           </div>
 
           <div>
-            <label for="addNodeType" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Device Type</label>
+            <label for="addNodeType" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('deviceType')}</label>
             <select 
               id="addNodeType" 
               bind:value={nodeForm.type} 
               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
             >
-              <option value="router">Router</option>
-              <option value="switch">Switch</option>
-              <option value="wifi">Wifi AP</option>
-              <option value="mobile">Mobile Device</option>
-              <option value="pc">PC / Endpoint</option>
-              <option value="server">Server</option>
-              <option value="printer">Printer</option>
-              <option value="unknown">Unknown</option>
+              <option value="router">{$t('type_router')}</option>
+              <option value="switch">{$t('type_switch')}</option>
+              <option value="wifi">{$t('type_wifi')}</option>
+              <option value="mobile">{$t('type_mobile')}</option>
+              <option value="pc">{$t('type_pc')}</option>
+              <option value="server">{$t('type_server')}</option>
+              <option value="printer">{$t('type_printer')}</option>
+              <option value="unknown">{$t('type_unknown')}</option>
             </select>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="addNodeSysName" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">SNMP SysName</label>
+              <label for="addNodeSysName" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('addNodeSysName')}</label>
               <input 
                 type="text" 
                 id="addNodeSysName" 
@@ -578,7 +581,7 @@
               />
             </div>
             <div>
-              <label for="addNodeVendor" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">OUI Vendor</label>
+              <label for="addNodeVendor" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('addNodeVendor')}</label>
               <input 
                 type="text" 
                 id="addNodeVendor" 
@@ -590,12 +593,11 @@
           </div>
 
           <div>
-            <label for="addNodeSysDesc" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">SNMP SysDesc</label>
+            <label for="addNodeSysDesc" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('addNodeSysDesc')}</label>
             <textarea 
               id="addNodeSysDesc" 
               bind:value={nodeForm.sysDesc} 
-              placeholder="Detailed hardware / description info..." 
-              rows="2"
+              placeholder={$t('addNodeSysDescPlaceholder')}               rows="2"
               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 resize-none" 
             ></textarea>
           </div>
@@ -606,13 +608,13 @@
               on:click={() => showAddModal = false} 
               class="bg-slate-700 hover:bg-slate-650 text-slate-200 font-semibold px-4 py-2 rounded-xl text-xs transition duration-150"
             >
-              Cancel
+              {$t('cancel')}
             </button>
             <button 
               type="submit" 
               class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-lg shadow-sky-600/10 transition duration-150"
             >
-              Add Node
+              {$t('addNodeBtn')}
             </button>
           </div>
         </form>
@@ -626,11 +628,11 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative animate-scale-up">
         <button on:click={() => showEditModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4 font-sans">Edit Network Node</h3>
+        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4 font-sans">{$t('editNode')}</h3>
         
         <form on:submit|preventDefault={handleEditNode} class="space-y-4">
           <div>
-            <label for="editNodeLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Display Label <span class="text-rose-500">*</span></label>
+            <label for="editNodeLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('addNodeLabel')} <span class="text-rose-500">*</span></label>
             <input 
               type="text" 
               id="editNodeLabel" 
@@ -641,26 +643,26 @@
           </div>
 
           <div>
-            <label for="editNodeType" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Device Type</label>
+            <label for="editNodeType" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('deviceType')}</label>
             <select 
               id="editNodeType" 
               bind:value={nodeForm.type} 
               class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50"
             >
-              <option value="router">Router</option>
-              <option value="switch">Switch</option>
-              <option value="wifi">Wifi AP</option>
-              <option value="mobile">Mobile Device</option>
-              <option value="pc">PC / Endpoint</option>
-              <option value="server">Server</option>
-              <option value="printer">Printer</option>
-              <option value="unknown">Unknown</option>
+              <option value="router">{$t('type_router')}</option>
+              <option value="switch">{$t('type_switch')}</option>
+              <option value="wifi">{$t('type_wifi')}</option>
+              <option value="mobile">{$t('type_mobile')}</option>
+              <option value="pc">{$t('type_pc')}</option>
+              <option value="server">{$t('type_server')}</option>
+              <option value="printer">{$t('type_printer')}</option>
+              <option value="unknown">{$t('type_unknown')}</option>
             </select>
           </div>
 
           <div class="grid grid-cols-2 gap-3">
             <div>
-              <label for="editNodeSysName" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">SNMP SysName</label>
+              <label for="editNodeSysName" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('addNodeSysName')}</label>
               <input 
                 type="text" 
                 id="editNodeSysName" 
@@ -669,7 +671,7 @@
               />
             </div>
             <div>
-              <label for="editNodeVendor" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">OUI Vendor</label>
+              <label for="editNodeVendor" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('addNodeVendor')}</label>
               <input 
                 type="text" 
                 id="editNodeVendor" 
@@ -680,7 +682,7 @@
           </div>
 
           <div>
-            <label for="editNodeSysDesc" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">SNMP SysDesc</label>
+            <label for="editNodeSysDesc" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('addNodeSysDesc')}</label>
             <textarea 
               id="editNodeSysDesc" 
               bind:value={nodeForm.sysDesc} 
@@ -691,11 +693,11 @@
 
           <!-- Metadata display -->
           <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-700/50 text-xxs text-slate-400 space-y-1">
-            <div><span class="text-slate-500 font-sans">Node ID:</span> <span class="font-mono text-slate-300">{nodeForm.id}</span></div>
-            <div><span class="text-slate-500 font-sans">IP Address:</span> <span class="font-mono text-slate-300">{nodeForm.ip || '—'}</span></div>
-            <div><span class="text-slate-500 font-sans">MAC Address:</span> <span class="font-mono text-slate-300">{nodeForm.mac || '—'}</span></div>
+            <div><span class="text-slate-500 font-sans">{$t('nodeId')}:</span> <span class="font-mono text-slate-300">{nodeForm.id}</span></div>
+            <div><span class="text-slate-500 font-sans">{$t('ipAddress')}:</span> <span class="font-mono text-slate-300">{nodeForm.ip || '—'}</span></div>
+            <div><span class="text-slate-500 font-sans">{$t('macAddress')}:</span> <span class="font-mono text-slate-300">{nodeForm.mac || '—'}</span></div>
             {#if nodeForm.reason}
-              <div class="border-t border-slate-800/80 pt-1 mt-1 font-sans italic text-slate-500"><span class="text-slate-400 font-semibold font-sans">Source / Reason:</span> {nodeForm.reason}</div>
+              <div class="border-t border-slate-800/80 pt-1 mt-1 font-sans italic text-slate-500"><span class="text-slate-400 font-semibold font-sans">{$t('sourceReason')}:</span> {nodeForm.reason}</div>
             {/if}
           </div>
 
@@ -705,13 +707,13 @@
               on:click={() => showEditModal = false} 
               class="bg-slate-700 hover:bg-slate-650 text-slate-200 font-semibold px-4 py-2 rounded-xl text-xs transition duration-150"
             >
-              Cancel
+              {$t('cancel')}
             </button>
             <button 
               type="submit" 
               class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-lg shadow-sky-600/10 transition duration-150"
             >
-              Save Changes
+              {$t('saveChangesBtn')}
             </button>
           </div>
         </form>
@@ -723,10 +725,9 @@
   {#if showDeleteConfirmModal && nodeToDelete}
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-sm p-6 shadow-2xl relative animate-scale-up">
-        <h3 class="text-md font-bold text-slate-100 mb-2 font-sans">Delete Network Node?</h3>
+        <h3 class="text-md font-bold text-slate-100 mb-2 font-sans">{$t('deleteNodeTitle')}</h3>
         <p class="text-xs text-slate-400 mb-5">
-          Are you sure you want to delete <span class="text-sky-400 font-semibold">{nodeToDelete.label || nodeToDelete.ip || nodeToDelete.id}</span>? 
-          This will also remove any network connections (links) connected to this node. This action cannot be undone.
+          {$t('deleteNodeDesc', { name: nodeToDelete.label || nodeToDelete.ip || nodeToDelete.id })}
         </p>
 
         <div class="flex justify-end gap-2">
@@ -734,13 +735,13 @@
             on:click={() => { showDeleteConfirmModal = false; nodeToDelete = null; }} 
             class="bg-slate-700 hover:bg-slate-650 text-slate-200 font-semibold px-4 py-2 rounded-xl text-xs transition duration-150"
           >
-            Cancel
+            {$t('cancel')}
           </button>
           <button 
             on:click={handleDeleteNode} 
             class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150"
           >
-            Delete Node
+            {$t('deleteNodeBtn')}
           </button>
         </div>
       </div>

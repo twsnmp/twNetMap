@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { GetConfig, SaveConfig } from '../../wailsjs/go/main/App';
+  import { t } from '../i18n.js';
 
   export let config = {
     Subnet: '192.168.1.0/24',
@@ -93,14 +94,14 @@
     try {
       // Validate subnet
       if (!config.Subnet.trim()) {
-        throw new Error('Subnet target range cannot be empty.');
+        throw new Error($t('validationSubnetEmpty'));
       }
       await SaveConfig(config);
       statusType = 'success';
-      statusMessage = 'Settings saved successfully!';
+      statusMessage = $t('toastSettingsSaved');
     } catch (err) {
       statusType = 'error';
-      statusMessage = err.message || 'Failed to save settings.';
+      statusMessage = err.message || $t('toastSettingsSaveFailed', { err });
     } finally {
       saving = false;
     }
@@ -109,13 +110,13 @@
 
 <div class="max-w-2xl mx-auto p-6 bg-slate-800/80 rounded-2xl border border-slate-700/60 shadow-2xl backdrop-blur-md">
   <div class="mb-6">
-    <h2 class="text-2xl font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">Scan Configuration</h2>
-    <p class="text-sm text-slate-400 mt-1">Setup network scanning IP targets and SNMP authentication keys.</p>
+    <h2 class="text-2xl font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">{$t('scanConfigTitle')}</h2>
+    <p class="text-sm text-slate-400 mt-1">{$t('scanConfigDesc')}</p>
   </div>
 
   <form on:submit|preventDefault={handleSave} class="space-y-5">
     <div>
-      <label for="subnet" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Subnet / Range / IP</label>
+      <label for="subnet" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">{$t('subnetRangeIp')}</label>
       <input
         type="text"
         id="subnet"
@@ -123,12 +124,12 @@
         placeholder="e.g. 192.168.1.0/24, 192.168.2.1-192.168.2.50, 192.168.3.100"
         class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition duration-200"
       />
-      <span class="text-xxs text-slate-500 mt-1 block">Supports comma-separated CIDR formats, IP ranges separated by hyphen, or single IP addresses. Limit to 1024 total hosts.</span>
+      <span class="text-xxs text-slate-500 mt-1 block">{$t('subnetHelp')}</span>
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
       <div>
-        <label for="timeout" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Timeout (Seconds)</label>
+        <label for="timeout" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">{$t('timeoutSeconds')}</label>
         <input
           type="number"
           id="timeout"
@@ -140,7 +141,7 @@
       </div>
 
       <div>
-        <label for="retry" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">Retry Count</label>
+        <label for="retry" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">{$t('retryCount')}</label>
         <input
           type="number"
           id="retry"
@@ -155,7 +156,7 @@
     <hr class="border-slate-700/50 my-6" />
 
     <div class="mb-4 space-y-4">
-      <h3 class="text-sm font-semibold text-slate-300">SNMP Settings List (Tried in Order)</h3>
+      <h3 class="text-sm font-semibold text-slate-300">{$t('snmpSettingsList')}</h3>
       
       {#if config.SnmpConfigs && config.SnmpConfigs.length > 0}
         <div class="space-y-2">
@@ -163,18 +164,20 @@
             <div class="flex items-center gap-3 p-3 bg-slate-900/60 border border-slate-700/60 rounded-xl transition duration-150 hover:border-slate-600/80">
               <div class="flex-grow grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                  <span class="text-xxs text-slate-500 uppercase tracking-wider block font-medium">Mode</span>
+                  <span class="text-xxs text-slate-500 uppercase tracking-wider block font-medium">{$t('snmpMode')}</span>
                   <span class="text-xs text-slate-200 font-semibold">{snmp.SnmpMode}</span>
                 </div>
                 <div>
-                  <span class="text-xxs text-slate-500 uppercase tracking-wider block font-medium whitespace-nowrap">Community / User</span>
+                  <span class="text-xxs text-slate-500 uppercase tracking-wider block font-medium whitespace-nowrap">
+                    {snmp.SnmpMode === 'v2c' ? $t('communityString') : $t('username')}
+                  </span>
                   <span class="text-xs text-slate-200 font-mono truncate block">
                     {snmp.SnmpMode === 'v2c' ? snmp.SnmpCommunity : snmp.SnmpUser}
                   </span>
                 </div>
                 <div>
                   {#if snmp.SnmpMode !== 'v2c'}
-                    <span class="text-xxs text-slate-500 uppercase tracking-wider block font-medium">Password</span>
+                    <span class="text-xxs text-slate-500 uppercase tracking-wider block font-medium">{$t('passwordAuthPriv')}</span>
                     <span class="text-xs text-slate-400 font-mono">••••••••</span>
                   {/if}
                 </div>
@@ -219,30 +222,30 @@
         </div>
       {:else}
         <div class="text-center py-6 bg-slate-900/30 border border-dashed border-slate-800 rounded-xl text-slate-500 text-xs italic">
-          No SNMP credentials defined. Active devices will be scanned without SNMP discovery.
+          {$t('noSnmpCredentials')}
         </div>
       {/if}
 
       <!-- Add New SNMP Configuration Box -->
       <div class="p-4 bg-slate-900/40 border border-dashed border-slate-700/40 rounded-2xl space-y-4">
-        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Add SNMP Credential</h4>
+        <h4 class="text-xs font-semibold text-slate-400 uppercase tracking-wider">{$t('addSnmpCredential')}</h4>
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label class="block text-xxs font-semibold text-slate-500 uppercase tracking-wider mb-2">SNMP Mode</label>
+            <label class="block text-xxs font-semibold text-slate-500 uppercase tracking-wider mb-2">{$t('snmpMode')}</label>
             <select
               bind:value={newSnmp.SnmpMode}
               class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 h-[38px] text-xs text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 transition duration-200"
             >
-              <option value="v2c">v2c (Community String)</option>
-              <option value="v3auth">v3auth (Username / Auth Password)</option>
+              <option value="v2c">v2c ({$t('communityString')})</option>
+              <option value="v3auth">v3auth ({$t('username')} / Auth Password)</option>
               <option value="v3authpriv">v3authpriv (Auth & Priv Encryption)</option>
             </select>
           </div>
 
           {#if newSnmp.SnmpMode === 'v2c'}
             <div>
-              <label class="block text-xxs font-semibold text-slate-500 uppercase tracking-wider mb-2">Community String</label>
+              <label class="block text-xxs font-semibold text-slate-500 uppercase tracking-wider mb-2">{$t('communityString')}</label>
               <input
                 type="text"
                 bind:value={newSnmp.SnmpCommunity}
@@ -252,7 +255,7 @@
             </div>
           {:else}
             <div>
-              <label class="block text-xxs font-semibold text-slate-500 uppercase tracking-wider mb-2">Username</label>
+              <label class="block text-xxs font-semibold text-slate-500 uppercase tracking-wider mb-2">{$t('username')}</label>
               <input
                 type="text"
                 bind:value={newSnmp.SnmpUser}
@@ -265,7 +268,7 @@
 
         {#if newSnmp.SnmpMode !== 'v2c'}
           <div>
-            <label class="block text-xxs font-semibold text-slate-500 uppercase tracking-wider mb-2">Password (Auth/Priv)</label>
+            <label class="block text-xxs font-semibold text-slate-500 uppercase tracking-wider mb-2">{$t('passwordAuthPriv')}</label>
             <input
               type="password"
               bind:value={newSnmp.SnmpPassword}
@@ -280,7 +283,7 @@
           on:click={addConfig}
           class="w-full bg-slate-800 hover:bg-slate-700 text-sky-400 hover:text-sky-300 font-semibold rounded-xl py-2.5 text-xs border border-slate-700/50 hover:border-slate-600/50 transition duration-150"
         >
-          + Add Credential to List
+          {$t('addCredentialBtn')}
         </button>
       </div>
     </div>
@@ -291,7 +294,7 @@
         disabled={saving}
         class="bg-gradient-to-r from-sky-500 to-indigo-500 hover:from-sky-400 hover:to-indigo-400 disabled:from-slate-700 disabled:to-slate-700 text-white font-semibold rounded-xl px-6 py-3 shadow-lg shadow-sky-500/20 active:scale-95 transition duration-150"
       >
-        {saving ? 'Saving...' : 'Save Configuration'}
+        {saving ? $t('savingBtn') : $t('saveConfigBtn')}
       </button>
 
       {#if statusMessage}

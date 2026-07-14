@@ -1,5 +1,6 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
+  import { t } from '../i18n.js';
   import { 
     GetNetworkMap, 
     SaveNode, 
@@ -30,7 +31,7 @@
   // Scanning State
   let scanning = false;
   let scanProgress = 0;
-  let scanMessage = 'Idle';
+  let scanMessage = 'idle';
   let aiRunning = false;
   let aiMessage = '';
 
@@ -232,11 +233,11 @@
       unsubComplete = window.runtime.EventsOn('scan_complete', async (data) => {
         scanning = false;
         if (data.success) {
-          scanMessage = `Scan complete. Found ${data.count} nodes. Run AI Inference next!`;
+          scanMessage = $t('scanCompleteFoundNodes', { count: data.count });
           scanProgress = 100;
           await loadMapData();
         } else {
-          scanMessage = `Scan failed: ${data.error}`;
+          scanMessage = $t('scanFailedError', { error: data.error });
           scanProgress = 0;
         }
       });
@@ -401,11 +402,11 @@
             if (!pendingConnectNodeId) {
               pendingConnectNodeId = nodeId;
               const node = nodesDataSet.get(nodeId);
-              showSuccess(`Selected source node: ${node ? node.label : nodeId}. Press Shift + click target node to connect.`);
+              showSuccess($t('toastSourceSelected', { name: node ? node.label : nodeId }));
             } else {
               if (pendingConnectNodeId === nodeId) {
                 pendingConnectNodeId = null;
-                showSuccess('Connection cancelled.');
+                showSuccess($t('toastConnectionCancelled'));
               } else {
                 addLinkFrom = pendingConnectNodeId;
                 addLinkTo = nodeId;
@@ -444,7 +445,7 @@
   async function triggerScan() {
     scanning = true;
     scanProgress = 0;
-    scanMessage = 'Starting scan...';
+    scanMessage = 'startingScan';
     try {
       await StartScan(config.Subnet);
     } catch (err) {
@@ -456,19 +457,19 @@
   function stopActiveScan() {
     StopScan();
     scanning = false;
-    scanMessage = 'Scan cancelled by user.';
+    scanMessage = 'scanCancelled';
     scanProgress = 0;
   }
 
   // LLM Topology Inference
   async function triggerAIInference() {
     aiRunning = true;
-    aiMessage = 'Connecting to LLM...';
-    scanMessage = 'Idle';
+    aiMessage = 'connectingLlm';
+    scanMessage = 'idle';
     try {
       const data = await RunAIInference();
       await loadMapData();
-      aiMessage = 'AI analysis completed successfully!';
+      aiMessage = 'aiAnalysisComplete';
     } catch (err) {
       aiMessage = `AI Error: ${err.message || err}`;
     } finally {
@@ -486,9 +487,9 @@
       await loadMapData();
       showEditModal = false;
       selectedNode = null;
-      showSuccess('Saved node changes.');
+      showSuccess($t('toastNodeSaved'));
     } catch (err) {
-      showError('Failed to save node changes: ' + err);
+      showError($t('toastNodeSaveFailed', { err }));
     }
   }
 
@@ -505,16 +506,16 @@
       await loadMapData();
       showEditModal = false;
       selectedNode = null;
-      showSuccess('Node deleted.');
+      showSuccess($t('toastNodeDeleted'));
     } catch (err) {
-      showError('Failed to delete node: ' + err);
+      showError($t('toastNodeDeleteFailed', { err }));
     }
   }
 
   // Add custom manual node
   async function handleAddNode() {
     if (!addNodeIP.trim() || !addNodeLabel.trim()) {
-      showError('IP address and label are required.');
+      showError($t('toastSubnetRequired'));
       return;
     }
     try {
@@ -538,20 +539,20 @@
       addNodeIP = '';
       addNodeLabel = '';
       addNodeType = 'unknown';
-      showSuccess('Custom node added.');
+      showSuccess($t('toastCustomNodeAdded'));
     } catch (err) {
-      showError('Failed to add custom node: ' + err);
+      showError($t('toastNodeAddFailed', { err }));
     }
   }
 
   // Add custom manual link
   async function handleAddLink() {
     if (!addLinkFrom || !addLinkTo) {
-      showError('Please select both nodes.');
+      showError($t('toastLinkNodesRequired'));
       return;
     }
     if (addLinkFrom === addLinkTo) {
-      showError('Cannot connect a node to itself.');
+      showError($t('toastSelfConnectError'));
       return;
     }
     try {
@@ -562,9 +563,9 @@
       addLinkTo = '';
       addLinkLabel = '';
       addLinkStyle = 'medium';
-      showSuccess('Connection link added.');
+      showSuccess($t('toastLinkAdded'));
     } catch (err) {
-      showError('Failed to add connection link: ' + err);
+      showError($t('toastLinkAddFailed', { err }));
     }
   }
 
@@ -594,9 +595,9 @@
       if (network) {
         network.unselectAll();
       }
-      showSuccess('Connection link updated.');
+      showSuccess($t('toastLinkUpdated'));
     } catch (err) {
-      showError('Failed to update connection link: ' + err);
+      showError($t('toastLinkUpdateFailed', { err }));
     }
   }
 
@@ -622,9 +623,9 @@
       if (network) {
         network.unselectAll();
       }
-      showSuccess('Connection link deleted.');
+      showSuccess($t('toastLinkDeleted'));
     } catch (err) {
-      showError('Failed to delete connection link: ' + err);
+      showError($t('toastLinkDeleteFailed', { err }));
     }
   }
 
@@ -659,11 +660,11 @@
       
       const savedPath = await ExportMap(format, pngBase64);
       if (savedPath) {
-        showSuccess(`Successfully exported to: ${savedPath}`);
+        showSuccess($t('toastExportSuccess', { path: savedPath }));
       }
     } catch (err) {
       console.error(err);
-      showError(`Export failed: ${err}`);
+      showError($t('toastExportFailed', { err }));
     } finally {
       exporting = false;
     }
@@ -680,12 +681,12 @@
       await ClearMap();
       selectedNode = null;
       showEditModal = false;
-      scanMessage = 'Idle';
+      scanMessage = 'idle';
       aiMessage = '';
       await loadMapData();
-      showSuccess('Network map cleared.');
+      showSuccess($t('toastMapCleared'));
     } catch (err) {
-      showError('Failed to clear map: ' + err);
+      showError($t('toastClearMapFailed', { err }));
     }
   }
 
@@ -706,9 +707,9 @@
     try {
       await RearrangeNodes(preserveManual);
       await loadMapData();
-      showSuccess('Rearranged map nodes successfully.');
+      showSuccess($t('toastRearrangeSuccess'));
     } catch (err) {
-      showError('Failed to rearrange map: ' + err);
+      showError($t('toastRearrangeFailed', { err }));
     }
   }
 </script>
@@ -728,19 +729,19 @@
   <div class="flex flex-wrap items-center justify-between gap-4 p-4 bg-slate-900 border-b border-slate-800">
     <div class="flex items-center gap-4">
       <div class="text-left">
-        <h1 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">twNetMap Dashboard</h1>
-        <p class="text-xs text-slate-400">Target Range: <span class="text-sky-400 font-mono">{config.Subnet || 'Not Configured'}</span></p>
+        <h1 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">{$t('dashboardTitle')}</h1>
+        <p class="text-xs text-slate-400">{$t('targetRange')}: <span class="text-sky-400 font-mono">{config.Subnet || $t('notConfigured')}</span></p>
       </div>
 
       <!-- Quick Action Buttons -->
       <div class="flex gap-2 ml-4">
         {#if scanning}
           <button on:click={stopActiveScan} class="bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition duration-200">
-            Cancel Scan
+            {$t('cancelScan')}
           </button>
         {:else}
           <button on:click={triggerScan} class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-semibold px-3 py-2 rounded-lg transition duration-200 shadow-md shadow-sky-600/10">
-            Active Scan
+            {$t('activeScan')}
           </button>
         {/if}
 
@@ -749,35 +750,35 @@
           disabled={aiRunning || scanning}
           class="bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition duration-200 shadow-md shadow-indigo-600/10"
         >
-          {aiRunning ? 'Inferring...' : 'Run AI Inference'}
+          {aiRunning ? $t('inferring') : $t('runAiInference')}
         </button>
 
         <div class="border-l border-slate-800 mx-1"></div>
 
         <button on:click={() => showAddNodeModal = true} class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 transition duration-200">
-          + Add Node
+          + {$t('addNode')}
         </button>
         <button on:click={() => showAddLinkModal = true} class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 transition duration-200">
-          + Connect Nodes
+          + {$t('connectNodes')}
         </button>
         <button 
           on:click={handleEditLink} 
           disabled={!selectedEdgeId}
           class="disabled:opacity-40 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-500 bg-sky-600/90 hover:bg-sky-600 text-white text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 disabled:border-slate-800/80 transition duration-200"
-          title="Select a connection line on the map to edit it"
+          title={$t('editLink')}
         >
-          Edit Link
+          {$t('editLink')}
         </button>
         <button on:click={handleClearMap} class="bg-slate-800 hover:bg-rose-950 text-slate-400 hover:text-rose-400 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 hover:border-rose-900/50 transition duration-200">
-          Clear Map
+          {$t('clearMap')}
         </button>
-        <button on:click={() => showExportModal = true} disabled={exporting} class="bg-indigo-600/90 hover:bg-indigo-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-2 rounded-lg border border-indigo-700 transition duration-200" title="Export network map to file">
-          {exporting ? 'Exporting...' : 'Export Map'}
+        <button on:click={() => showExportModal = true} disabled={exporting} class="bg-indigo-600/90 hover:bg-indigo-600 disabled:opacity-50 text-white text-xs font-medium px-3 py-2 rounded-lg border border-indigo-700 transition duration-200" title={$t('exportMap')}>
+          {exporting ? $t('exporting') : $t('exportMap')}
         </button>
-        <button on:click={() => showRearrangeModal = true} class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 transition duration-200" title="Auto Layout (Rearrange)">
-          Auto Layout
+        <button on:click={() => showRearrangeModal = true} class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium px-3 py-2 rounded-lg border border-slate-700 transition duration-200" title={$t('autoLayout')}>
+          {$t('autoLayout')}
         </button>
-        <button on:click={resetPhysics} class="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs font-medium px-2 py-2 rounded-lg border border-slate-700 transition duration-200" title="Recenter & Stabilize">
+        <button on:click={resetPhysics} class="bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs font-medium px-2 py-2 rounded-lg border border-slate-700 transition duration-200" title={$t('recenterStabilize')}>
           🔄
         </button>
       </div>
@@ -785,9 +786,9 @@
 
     <!-- Active Scanning & Inference Status Overlays -->
     <div class="flex items-center gap-4 text-xs">
-      {#if scanning || (scanMessage && scanMessage !== 'Idle')}
+      {#if scanning || (scanMessage && scanMessage !== 'idle')}
         <div class="flex flex-col items-start w-64 md:w-80">
-          <span class="text-sky-400 font-medium truncate max-w-full" title={scanMessage}>{scanMessage}</span>
+          <span class="text-sky-400 font-medium truncate max-w-full" title={$t(scanMessage) || scanMessage}>{$t(scanMessage) || scanMessage}</span>
           {#if scanning}
             <div class="w-full bg-slate-800 rounded-full h-1.5 mt-1 overflow-hidden">
               <div class="bg-sky-400 h-1.5 rounded-full transition-all duration-300" style="width: {scanProgress}%"></div>
@@ -798,8 +799,8 @@
 
       {#if aiRunning || aiMessage}
         <div class="text-left md:text-right">
-          <span class={`font-medium ${aiRunning ? 'text-indigo-400 animate-pulse' : 'text-slate-400'}`} title={aiMessage}>
-            {aiMessage}
+          <span class={`font-medium ${aiRunning ? 'text-indigo-400 animate-pulse' : 'text-slate-400'}`} title={$t(aiMessage) || aiMessage}>
+            {$t(aiMessage) || aiMessage}
           </span>
         </div>
       {/if}
@@ -813,30 +814,30 @@
     <!-- Layout Settings Panel -->
     <div class="absolute top-4 left-4 p-2.5 bg-slate-900/95 border border-slate-800 rounded-lg text-xxs space-y-2 z-10 w-44 backdrop-blur-md shadow-2xl">
       <div class="flex items-center justify-between text-[10px] text-slate-300 font-bold border-b border-slate-800/60 pb-1 mb-1.5">
-        <span class="flex items-center gap-1">⚙️ Layout</span>
+        <span class="flex items-center gap-1">⚙️ {$t('layoutMode')}</span>
       </div>
       
       <div class="space-y-1.5">
-        <span class="block text-slate-500 font-semibold text-[9px] uppercase tracking-wider">Mode</span>
+        <span class="block text-slate-500 font-semibold text-[9px] uppercase tracking-wider">{$t('layoutMode')}</span>
         <div class="grid grid-cols-3 gap-1">
           <button 
             on:click={() => changeLayoutMode('hierarchical')} 
             class="py-1 rounded-md border transition text-center text-xs {layoutMode === 'hierarchical' ? 'bg-sky-600 border-sky-500 text-white shadow-md shadow-sky-600/10' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750'}"
-            title="Hierarchical Layout (樹状構造)"
+            title={$t('layoutHierarchical')}
           >
             🌲
           </button>
           <button 
             on:click={() => changeLayoutMode('force')} 
             class="py-1 rounded-md border transition text-center text-xs {layoutMode === 'force' ? 'bg-sky-600 border-sky-500 text-white shadow-md shadow-sky-600/10' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750'}"
-            title="Force-Directed Layout (力学モデル)"
+            title={$t('layoutForce')}
           >
             ⚛️
           </button>
           <button 
             on:click={() => changeLayoutMode('static')} 
             class="py-1 rounded-md border transition text-center text-xs {layoutMode === 'static' ? 'bg-sky-600 border-sky-500 text-white shadow-md shadow-sky-600/10' : 'bg-slate-800 border-slate-700 text-slate-400 hover:bg-slate-750'}"
-            title="Static Layout (自由配置・固定)"
+            title={$t('layoutStatic')}
           >
             📌
           </button>
@@ -846,7 +847,7 @@
       {#if layoutMode !== 'static'}
         <div class="space-y-1 pt-0.5">
           <div class="flex justify-between text-slate-500 font-semibold text-[9px] uppercase tracking-wider">
-            <span>Spacing</span>
+            <span>{$t('layoutSpacing')}</span>
             <span class="text-sky-400 font-mono">{nodeSpacing}px</span>
           </div>
           <input type="range" min="50" max="300" step="10" bind:value={nodeSpacing} on:input={updateSpacing} class="w-full accent-sky-500 bg-slate-800 rounded-lg appearance-none h-1 cursor-pointer" />
@@ -856,18 +857,18 @@
     
     <!-- Legend -->
     <div class="absolute bottom-4 left-4 p-3 bg-slate-900/90 border border-slate-850 rounded-xl text-xs space-y-2 pointer-events-none backdrop-blur-md">
-      <h4 class="font-bold text-slate-300 border-b border-slate-800 pb-1 mb-2">Device Types</h4>
+      <h4 class="font-bold text-slate-300 border-b border-slate-800 pb-1 mb-2">{$t('deviceTypes')}</h4>
       <div class="grid grid-cols-2 gap-x-4 gap-y-1.5">
-        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #f59e0b"></span><span class="text-slate-400">Router</span></div>
-        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #3b82f6"></span><span class="text-slate-400">Switch</span></div>
-        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #06b6d4"></span><span class="text-slate-400">Wifi AP</span></div>
-        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #f43f5e"></span><span class="text-slate-400">Mobile</span></div>
-        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #10b981"></span><span class="text-slate-400">PC / Endpoint</span></div>
-        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #8b5cf6"></span><span class="text-slate-400">Server</span></div>
-        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #ec4899"></span><span class="text-slate-400">Printer</span></div>
-        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #94a3b8"></span><span class="text-slate-400">Unknown</span></div>
+        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #f59e0b"></span><span class="text-slate-400">{$t('type_router')}</span></div>
+        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #3b82f6"></span><span class="text-slate-400">{$t('type_switch')}</span></div>
+        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #06b6d4"></span><span class="text-slate-400">{$t('type_wifi')}</span></div>
+        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #f43f5e"></span><span class="text-slate-400">{$t('type_mobile')}</span></div>
+        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #10b981"></span><span class="text-slate-400">{$t('type_pc')}</span></div>
+        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #8b5cf6"></span><span class="text-slate-400">{$t('type_server')}</span></div>
+        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #ec4899"></span><span class="text-slate-400">{$t('type_printer')}</span></div>
+        <div class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full" style="background-color: #94a3b8"></span><span class="text-slate-400">{$t('type_unknown')}</span></div>
       </div>
-      <div class="text-slate-500 text-xxs mt-2 border-t border-slate-800/80 pt-1">Double click node to edit/delete</div>
+      <div class="text-slate-500 text-xxs mt-2 border-t border-slate-800/80 pt-1">{$t('legendDblClick')}</div>
     </div>
   </div>
 
@@ -877,62 +878,62 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-xl p-6 shadow-2xl relative">
         <button on:click={() => showEditModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4">Edit Network Node</h3>
+        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4">{$t('editNode')}</h3>
         
         <div class="space-y-4">
           <div>
-            <label for="nodeLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Display Label</label>
+            <label for="nodeLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('displayLabel')}</label>
             <input type="text" id="nodeLabel" bind:value={editNodeLabel} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
           </div>
 
           <div>
-            <label for="nodeType" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Device Type</label>
+            <label for="nodeType" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('deviceType')}</label>
             <select id="nodeType" bind:value={editNodeType} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50">
-              <option value="router">Router</option>
-              <option value="switch">Switch</option>
-              <option value="wifi">Wifi AP</option>
-              <option value="mobile">Mobile Device</option>
-              <option value="pc">PC / Endpoint</option>
-              <option value="server">Server</option>
-              <option value="printer">Printer</option>
-              <option value="unknown">Unknown</option>
+              <option value="router">{$t('type_router')}</option>
+              <option value="switch">{$t('type_switch')}</option>
+              <option value="wifi">{$t('type_wifi')}</option>
+              <option value="mobile">{$t('type_mobile')}</option>
+              <option value="pc">{$t('type_pc')}</option>
+              <option value="server">{$t('type_server')}</option>
+              <option value="printer">{$t('type_printer')}</option>
+              <option value="unknown">{$t('type_unknown')}</option>
             </select>
           </div>
 
           <!-- Metadata table -->
           <div class="bg-slate-900/60 rounded-xl p-3 border border-slate-700/50 text-xs text-slate-400 space-y-1.5">
-            <div><span class="text-slate-500">IP Address:</span> <span class="font-mono text-slate-300">{selectedNode.ip || 'N/A'}</span></div>
-            <div><span class="text-slate-500">MAC Address:</span> <span class="font-mono text-slate-300">{selectedNode.mac || 'N/A'}</span></div>
-            <div><span class="text-slate-500">OUI Vendor:</span> <span class="text-slate-300">{selectedNode.vendor || 'N/A'}</span></div>
+            <div><span class="text-slate-500">{$t('ipAddress')}:</span> <span class="font-mono text-slate-300">{selectedNode.ip || 'N/A'}</span></div>
+            <div><span class="text-slate-500">{$t('macAddress')}:</span> <span class="font-mono text-slate-300">{selectedNode.mac || 'N/A'}</span></div>
+            <div><span class="text-slate-500">{$t('ouiVendor')}:</span> <span class="text-slate-300">{selectedNode.vendor || 'N/A'}</span></div>
             {#if selectedNode.sysName}
-              <div><span class="text-slate-500">SNMP Name:</span> <span class="text-slate-300">{selectedNode.sysName}</span></div>
+              <div><span class="text-slate-500">{$t('snmpName')}:</span> <span class="text-slate-300">{selectedNode.sysName}</span></div>
             {/if}
             {#if selectedNode.sysDesc}
-              <div class="line-clamp-2"><span class="text-slate-500">SNMP Desc:</span> <span class="text-slate-300">{selectedNode.sysDesc}</span></div>
+              <div class="line-clamp-2"><span class="text-slate-500">{$t('snmpDesc')}:</span> <span class="text-slate-300">{selectedNode.sysDesc}</span></div>
             {/if}
             {#if selectedNode.reason}
-              <div class="border-t border-slate-800/80 pt-1 mt-1 font-sans italic text-slate-500"><span class="text-slate-400 font-medium">AI Reason:</span> {selectedNode.reason}</div>
+              <div class="border-t border-slate-800/80 pt-1 mt-1 font-sans italic text-slate-500"><span class="text-slate-400 font-medium">{$t('aiReason')}:</span> {selectedNode.reason}</div>
             {/if}
           </div>
 
           <div class="flex justify-between items-center bg-slate-900/40 p-2.5 rounded-xl border border-slate-700/40 mt-2 gap-4">
-            <span class="text-xxs text-slate-400 font-medium whitespace-nowrap">Check raw scan data (reference for changes):</span>
+            <span class="text-xxs text-slate-400 font-medium whitespace-nowrap">{$t('rawScanDataPrompt')}</span>
             <button 
               on:click={() => showScanDataModal = true} 
               class="bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-800 text-indigo-300 text-xxs font-semibold px-2.5 py-1.5 rounded-lg transition duration-150 whitespace-nowrap"
             >
-              View Scan JSON
+              {$t('viewScanJson')}
             </button>
           </div>
         </div>
 
         <div class="flex items-center justify-between mt-6">
           <button on:click={deleteSelectedNode} class="bg-rose-950/60 hover:bg-rose-900 border border-rose-800/60 text-rose-300 font-semibold px-4 py-2 rounded-xl transition duration-150">
-            Delete Node
+            {$t('deleteNode')}
           </button>
           <div class="flex gap-2">
-            <button on:click={() => showEditModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl">Cancel</button>
-            <button on:click={saveNodeEdit} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl shadow-lg shadow-sky-600/10">Save</button>
+            <button on:click={() => showEditModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl">{$t('cancel')}</button>
+            <button on:click={saveNodeEdit} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl shadow-lg shadow-sky-600/10">{$t('save')}</button>
           </div>
         </div>
       </div>
@@ -945,37 +946,37 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
         <button on:click={() => showAddNodeModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4">Add Custom Node</h3>
+        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4">{$t('addCustomNode')}</h3>
         
         <div class="space-y-4">
           <div>
-            <label for="addNodeIP" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">IP Address / Unique ID</label>
-            <input type="text" id="addNodeIP" bind:value={addNodeIP} placeholder="e.g. 192.168.1.15" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
+            <label for="addNodeIP" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('ipAddressUniqueId')}</label>
+            <input type="text" id="addNodeIP" bind:value={addNodeIP} placeholder={$t('ipAddressPlaceholder')} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
           </div>
 
           <div>
-            <label for="addNodeLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Display Label</label>
-            <input type="text" id="addNodeLabel" bind:value={addNodeLabel} placeholder="e.g. File Server" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
+            <label for="addNodeLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('displayLabel')}</label>
+            <input type="text" id="addNodeLabel" bind:value={addNodeLabel} placeholder={$t('displayLabelPlaceholder')} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
           </div>
 
           <div>
-            <label for="addNodeType" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Device Type</label>
+            <label for="addNodeType" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('deviceType')}</label>
             <select id="addNodeType" bind:value={addNodeType} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50">
-              <option value="router">Router</option>
-              <option value="switch">Switch</option>
-              <option value="wifi">Wifi AP</option>
-              <option value="mobile">Mobile Device</option>
-              <option value="pc">PC / Endpoint</option>
-              <option value="server">Server</option>
-              <option value="printer">Printer</option>
-              <option value="unknown">Unknown</option>
+              <option value="router">{$t('type_router')}</option>
+              <option value="switch">{$t('type_switch')}</option>
+              <option value="wifi">{$t('type_wifi')}</option>
+              <option value="mobile">{$t('type_mobile')}</option>
+              <option value="pc">{$t('type_pc')}</option>
+              <option value="server">{$t('type_server')}</option>
+              <option value="printer">{$t('type_printer')}</option>
+              <option value="unknown">{$t('type_unknown')}</option>
             </select>
           </div>
         </div>
 
         <div class="flex justify-end gap-2 mt-6">
-          <button on:click={() => showAddNodeModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl">Cancel</button>
-          <button on:click={handleAddNode} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl shadow-lg shadow-sky-600/10">Add Node</button>
+          <button on:click={() => showAddNodeModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl">{$t('cancel')}</button>
+          <button on:click={handleAddNode} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl shadow-lg shadow-sky-600/10">{$t('addNodeBtn')}</button>
         </div>
       </div>
     </div>
@@ -987,13 +988,13 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
         <button on:click={() => showAddLinkModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4">Connect Nodes</h3>
+        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4">{$t('connectNodes')}</h3>
         
         <div class="space-y-4">
           <div>
-            <label for="linkFrom" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Source Node</label>
+            <label for="linkFrom" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('sourceNode')}</label>
             <select id="linkFrom" bind:value={addLinkFrom} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50">
-              <option value="">-- Select Source Node --</option>
+              <option value="">{$t('selectSourceNode')}</option>
               {#each nodesDataSet.get() as n}
                 <option value={n.id}>{n.label} ({n.id})</option>
               {/each}
@@ -1001,9 +1002,9 @@
           </div>
 
           <div>
-            <label for="linkTo" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Target Node</label>
+            <label for="linkTo" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('targetNode')}</label>
             <select id="linkTo" bind:value={addLinkTo} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50">
-              <option value="">-- Select Target Node --</option>
+              <option value="">{$t('selectTargetNode')}</option>
               {#each nodesDataSet.get() as n}
                 <option value={n.id}>{n.label} ({n.id})</option>
               {/each}
@@ -1011,24 +1012,24 @@
           </div>
 
           <div>
-            <label for="linkLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Link Label</label>
-            <input type="text" id="linkLabel" bind:value={addLinkLabel} placeholder="e.g. 10G, Trunk, vpn" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
+            <label for="linkLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('linkLabel')}</label>
+            <input type="text" id="linkLabel" bind:value={addLinkLabel} placeholder={$t('linkLabelPlaceholder')} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
           </div>
 
           <div>
-            <label for="linkStyle" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Link Display Type</label>
+            <label for="linkStyle" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('linkDisplayType')}</label>
             <select id="linkStyle" bind:value={addLinkStyle} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50">
-              <option value="thin">Thin</option>
-              <option value="medium">Medium</option>
-              <option value="thick">Thick</option>
-              <option value="dotted">Dotted</option>
+              <option value="thin">{$t('style_thin')}</option>
+              <option value="medium">{$t('style_medium')}</option>
+              <option value="thick">{$t('style_thick')}</option>
+              <option value="dotted">{$t('style_dotted')}</option>
             </select>
           </div>
         </div>
 
         <div class="flex justify-end gap-2 mt-6">
-          <button on:click={() => showAddLinkModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl">Cancel</button>
-          <button on:click={handleAddLink} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl shadow-lg shadow-sky-600/10">Add Connection</button>
+          <button on:click={() => showAddLinkModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl">{$t('cancel')}</button>
+          <button on:click={handleAddLink} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl shadow-lg shadow-sky-600/10">{$t('addConnection')}</button>
         </div>
       </div>
     </div>
@@ -1040,47 +1041,47 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
         <button on:click={() => showEditLinkModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4">Edit Connection</h3>
+        <h3 class="text-lg font-bold bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent mb-4">{$t('editConnection')}</h3>
         
         <div class="space-y-4">
           <div>
-            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Source Node</label>
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{$t('sourceNode')}</label>
             <div class="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2 text-slate-400 text-sm">
               {editLinkFromLabel}
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Target Node</label>
+            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{$t('targetNode')}</label>
             <div class="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-2 text-slate-400 text-sm">
               {editLinkToLabel}
             </div>
           </div>
 
           <div>
-            <label for="editLinkLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Link Label</label>
-            <input type="text" id="editLinkLabel" bind:value={editLinkLabel} placeholder="e.g. 10G, Trunk, vpn" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
+            <label for="editLinkLabel" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('linkLabel')}</label>
+            <input type="text" id="editLinkLabel" bind:value={editLinkLabel} placeholder={$t('linkLabelPlaceholder')} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50" />
           </div>
 
           <div>
-            <label for="editLinkStyle" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Link Display Type</label>
+            <label for="editLinkStyle" class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">{$t('linkDisplayType')}</label>
             <select id="editLinkStyle" bind:value={editLinkStyle} class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50">
-              <option value="thin">Thin</option>
-              <option value="medium">Medium</option>
-              <option value="thick">Thick</option>
-              <option value="dotted">Dotted</option>
+              <option value="thin">{$t('style_thin')}</option>
+              <option value="medium">{$t('style_medium')}</option>
+              <option value="thick">{$t('style_thick')}</option>
+              <option value="dotted">{$t('style_dotted')}</option>
             </select>
           </div>
         </div>
 
         <div class="flex justify-between items-center mt-6">
           <button on:click={handleDeleteLinkFromEditModal} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">
-            Delete Connection
+            {$t('deleteConnection')}
           </button>
           
           <div class="flex gap-2">
-            <button on:click={() => showEditLinkModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl text-xs font-semibold">Cancel</button>
-            <button on:click={handleUpdateLink} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-lg shadow-sky-600/10">Save Changes</button>
+            <button on:click={() => showEditLinkModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2 rounded-xl text-xs font-semibold">{$t('cancel')}</button>
+            <button on:click={handleUpdateLink} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-2 rounded-xl text-xs shadow-lg shadow-sky-600/10">{$t('saveChanges')}</button>
           </div>
         </div>
       </div>
@@ -1093,22 +1094,22 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
         <button on:click={() => showRearrangeModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold text-sky-400 mb-2">Rearrange Network Map</h3>
-        <p class="text-slate-300 text-sm mb-6">Choose how you want to rearrange the nodes on the network map. If links exist (AI Inference topology), nodes will be tiered by device type. Otherwise, they will be arranged in a 10-column grid by IP address.</p>
+        <h3 class="text-lg font-bold text-sky-400 mb-2">{$t('rearrangeNetworkMap')}</h3>
+        <p class="text-slate-300 text-sm mb-6">{$t('rearrangeDesc')}</p>
         
         <div class="flex flex-col gap-2 mb-6">
           <button on:click={() => triggerRearrange(true)} class="bg-sky-600 hover:bg-sky-500 text-white font-semibold px-4 py-3 rounded-xl text-xs shadow-lg shadow-sky-600/10 transition duration-150 text-left flex justify-between items-center">
-            <span>Keep Manual Positions (Only rearrange auto-placed nodes)</span>
+            <span>{$t('keepManualPositions')}</span>
             <span>➔</span>
           </button>
           <button on:click={() => triggerRearrange(false)} class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-3 rounded-xl text-xs shadow-lg shadow-indigo-600/10 transition duration-150 text-left flex justify-between items-center">
-            <span>Reset All Positions (Rearrange every node)</span>
+            <span>{$t('resetAllPositions')}</span>
             <span>➔</span>
           </button>
         </div>
         
         <div class="flex justify-end">
-          <button on:click={() => showRearrangeModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
+          <button on:click={() => showRearrangeModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">{$t('cancel')}</button>
         </div>
       </div>
     </div>
@@ -1120,12 +1121,12 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
         <button on:click={() => showClearConfirmModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold text-rose-500 mb-2">Clear Network Map?</h3>
-        <p class="text-slate-300 text-sm mb-6">Are you sure you want to clear the entire network map? This will delete all nodes and links. This action cannot be undone.</p>
+        <h3 class="text-lg font-bold text-rose-500 mb-2">{$t('clearMapTitle')}</h3>
+        <p class="text-slate-300 text-sm mb-6">{$t('clearMapDesc')}</p>
         
         <div class="flex justify-end gap-3">
-          <button on:click={() => showClearConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
-          <button on:click={confirmClearMap} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">Clear Map</button>
+          <button on:click={() => showClearConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">{$t('cancel')}</button>
+          <button on:click={confirmClearMap} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">{$t('clearMap')}</button>
         </div>
       </div>
     </div>
@@ -1137,12 +1138,12 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
         <button on:click={() => showDeleteConfirmModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold text-rose-500 mb-2">Delete Node?</h3>
-        <p class="text-slate-300 text-sm mb-6">Are you sure you want to delete node <span class="font-semibold text-slate-100">{selectedNode.label}</span>? This action cannot be undone.</p>
+        <h3 class="text-lg font-bold text-rose-500 mb-2">{$t('deleteNodeTitle')}</h3>
+        <p class="text-slate-300 text-sm mb-6">{$t('deleteNodeFullDesc', { name: selectedNode.label || selectedNode.ip || selectedNode.id })}</p>
         
         <div class="flex justify-end gap-3">
-          <button on:click={() => showDeleteConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
-          <button on:click={confirmDeleteNode} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">Delete</button>
+          <button on:click={() => showDeleteConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">{$t('cancel')}</button>
+          <button on:click={confirmDeleteNode} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">{$t('deleteNode')}</button>
         </div>
       </div>
     </div>
@@ -1154,18 +1155,14 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-md p-6 shadow-2xl relative">
         <button on:click={() => showDeleteLinkConfirmModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold text-rose-500 mb-2">Delete Connection Line?</h3>
+        <h3 class="text-lg font-bold text-rose-500 mb-2">{$t('deleteLinkTitle')}</h3>
         <p class="text-slate-300 text-sm mb-6">
-          Are you sure you want to delete the connection between 
-          <span class="font-semibold text-slate-100">{selectedEdgeInfo.fromLabel}</span> 
-          and 
-          <span class="font-semibold text-slate-100">{selectedEdgeInfo.toLabel}</span>
-          ({selectedEdgeInfo.type})? This action cannot be undone.
+          {$t('deleteLinkDesc', { from: selectedEdgeInfo.fromLabel, to: selectedEdgeInfo.toLabel, type: selectedEdgeInfo.type })}
         </p>
         
         <div class="flex justify-end gap-3">
-          <button on:click={() => showDeleteLinkConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
-          <button on:click={confirmDeleteLink} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">Delete</button>
+          <button on:click={() => showDeleteLinkConfirmModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">{$t('cancel')}</button>
+          <button on:click={confirmDeleteLink} class="bg-rose-600 hover:bg-rose-500 text-white font-semibold px-4 py-2.5 rounded-xl text-xs shadow-lg shadow-rose-600/10 transition duration-150">{$t('deleteNode')}</button>
         </div>
       </div>
     </div>
@@ -1177,46 +1174,46 @@
       <div class="bg-slate-800 border border-slate-700/80 rounded-2xl w-full max-w-lg p-6 shadow-2xl relative">
         <button on:click={() => showExportModal = false} class="absolute top-4 right-4 text-slate-400 hover:text-slate-200">✕</button>
         
-        <h3 class="text-lg font-bold text-sky-400 mb-2">Export Network Map</h3>
-        <p class="text-slate-300 text-sm mb-6">Select the format you want to export the network map to:</p>
+        <h3 class="text-lg font-bold text-sky-400 mb-2">{$t('exportMapTitle')}</h3>
+        <p class="text-slate-300 text-sm mb-6">{$t('exportMapDesc')}</p>
         
         <div class="grid grid-cols-2 gap-3 mb-6">
           <button on:click={() => handleExport('png')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
-            <span class="text-sm font-semibold text-slate-100">PNG Image</span>
-            <span class="text-xs text-slate-400">Save as a standard image file</span>
+            <span class="text-sm font-semibold text-slate-100">{$t('exportPng')}</span>
+            <span class="text-xs text-slate-400">{$t('exportPngDesc')}</span>
           </button>
           <button on:click={() => handleExport('svg')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
-            <span class="text-sm font-semibold text-slate-100">SVG Image</span>
-            <span class="text-xs text-slate-400">Vector image for scaling & editing</span>
+            <span class="text-sm font-semibold text-slate-100">{$t('exportSvg')}</span>
+            <span class="text-xs text-slate-400">{$t('exportSvgDesc')}</span>
           </button>
           <button on:click={() => handleExport('pdf')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
-            <span class="text-sm font-semibold text-slate-100">PDF Document</span>
-            <span class="text-xs text-slate-400">Export map as a PDF page</span>
+            <span class="text-sm font-semibold text-slate-100">{$t('exportPdf')}</span>
+            <span class="text-xs text-slate-400">{$t('exportPdfDesc')}</span>
           </button>
           <button on:click={() => handleExport('drawio')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
-            <span class="text-sm font-semibold text-slate-100">Draw.io (.drawio)</span>
-            <span class="text-xs text-slate-400">Open in diagrams.net for editing</span>
+            <span class="text-sm font-semibold text-slate-100">{$t('exportDrawio')}</span>
+            <span class="text-xs text-slate-400">{$t('exportDrawioDesc')}</span>
           </button>
           <button on:click={() => handleExport('json_map')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
-            <span class="text-sm font-semibold text-slate-100">Map JSON</span>
-            <span class="text-xs text-slate-400">Export unique layout JSON data</span>
+            <span class="text-sm font-semibold text-slate-100">{$t('exportJsonMap')}</span>
+            <span class="text-xs text-slate-400">{$t('exportJsonMapDesc')}</span>
           </button>
           <button on:click={() => handleExport('json_scan')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
-            <span class="text-sm font-semibold text-slate-100">Scan JSON</span>
-            <span class="text-xs text-slate-400">Raw IP/MAC scan results JSON</span>
+            <span class="text-sm font-semibold text-slate-100">{$t('exportJsonScan')}</span>
+            <span class="text-xs text-slate-400">{$t('exportJsonScanDesc')}</span>
           </button>
           <button on:click={() => handleExport('csv')} class="flex flex-col items-start p-3 bg-slate-750 hover:bg-slate-700 rounded-xl transition duration-150 text-left border border-slate-700">
-            <span class="text-sm font-semibold text-slate-100">Node List (CSV)</span>
-            <span class="text-xs text-slate-400">Export node details in CSV format</span>
+            <span class="text-sm font-semibold text-slate-100">{$t('exportCsv')}</span>
+            <span class="text-xs text-slate-400">{$t('exportCsvDesc')}</span>
           </button>
           <button on:click={() => handleExport('excel')} class="flex flex-col items-start p-3 bg-indigo-950/30 hover:bg-indigo-900/50 border border-indigo-800/50 rounded-xl transition duration-150 text-left">
-            <span class="text-sm font-semibold text-indigo-200">EXCEL Document</span>
-            <span class="text-xs text-indigo-400">Map Image + Node list sheets</span>
+            <span class="text-sm font-semibold text-indigo-200">{$t('exportExcel')}</span>
+            <span class="text-xs text-indigo-400">{$t('exportExcelDesc')}</span>
           </button>
         </div>
         
         <div class="flex justify-end">
-          <button on:click={() => showExportModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">Cancel</button>
+          <button on:click={() => showExportModal = false} class="bg-slate-700 hover:bg-slate-650 text-slate-200 px-4 py-2.5 rounded-xl text-xs font-semibold transition duration-150">{$t('cancel')}</button>
         </div>
       </div>
     </div>
