@@ -9,7 +9,6 @@
   "frontend:dev:serverUrl": "auto",
   "wailsjsdir": "./frontend",
   "version": "2",
-  "projectdir": ".",
   "build:dir": "build",
   "build:tags": "",
   "outputfilename": "twNetMap",
