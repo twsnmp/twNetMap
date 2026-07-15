@@ -122,3 +122,22 @@ html, body, #app {
   bottom: 52px !important;
   right: 16px !important;
 }
+
+/* Custom Select Box overrides to fix styling on Linux (WebKitGTK) */
+select {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e") !important;
+  background-repeat: no-repeat !important;
+  background-position: right 0.75rem center !important;
+  background-size: 1em !important;
+  padding-right: 2.25rem !important; /* Ensure text doesn't overlap the arrow */
+}
+
+/* Ensure dropdown options are styled with a dark theme on all platforms */
+option {
+  background-color: #0f172a !important; /* Tailwind slate-900 */
+  color: #cbd5e1 !important; /* Tailwind slate-300 */
+}
+
