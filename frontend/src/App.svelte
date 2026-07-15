@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { GetConfig } from '../wailsjs/go/main/App';
+  import { GetConfig, SaveConfig } from '../wailsjs/go/main/App';
   import { currentLanguage, t } from './i18n.js';
   
   import NetworkMap from './routes/NetworkMap.svelte';
@@ -43,6 +43,17 @@
       }
     } catch (err) {
       console.error('Failed to refresh config:', err);
+    }
+  }
+
+  async function handleLanguageChange(event) {
+    const selectedLang = event.target.value;
+    currentLanguage.set(selectedLang);
+    config = { ...config, Language: selectedLang };
+    try {
+      await SaveConfig(config);
+    } catch (err) {
+      console.error('Failed to save language config:', err);
     }
   }
 </script>
@@ -91,9 +102,25 @@
       </button>
     </nav>
 
-    <!-- Version badge -->
-    <div class="text-xxs text-slate-500 font-mono select-none">
-      v0.1.0
+    <!-- Language Selector & Version badge -->
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-1.5 bg-slate-950/40 px-2.5 py-1 rounded-lg border border-slate-800">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-slate-400">
+          <path stroke-linecap="round" stroke-linejoin="round" d="m10.5 21 5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 0 0 6-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138A14.37 14.37 0 0 0 9 5.25M9 5.25c-1.367 3.528-4.22 6.7-7.5 8.125" />
+        </svg>
+        <select
+          value={$currentLanguage}
+          on:change={handleLanguageChange}
+          class="bg-transparent text-xxs text-slate-300 font-semibold focus:outline-none border-none cursor-pointer pr-1"
+        >
+          <option value="auto" class="bg-slate-900 text-slate-200">{$t('languageAuto')}</option>
+          <option value="en" class="bg-slate-900 text-slate-200">{$t('languageEn')}</option>
+          <option value="ja" class="bg-slate-900 text-slate-200">{$t('languageJa')}</option>
+        </select>
+      </div>
+      <div class="text-xxs text-slate-500 font-mono select-none">
+        v0.1.0
+      </div>
     </div>
   </header>
 
