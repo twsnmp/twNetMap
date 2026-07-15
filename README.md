@@ -44,6 +44,14 @@ You can download the pre-built standalone binaries from the [GitHub Releases](ht
 - The macOS version is provided as a signed and notarized **PKG** installer (`.pkg`).
 - Download the PKG file, double-click to open it, and follow the installation wizard.
 
+#### Windows
+- The Windows version is not digitally signed. When you extract and try to run the downloaded ZIP file, Windows Defender SmartScreen may block its execution.
+- **How to unblock and run**:
+  1. Extract the downloaded ZIP file.
+  2. Right-click on `twNetMap.exe` in the extracted folder and select **Properties**.
+  3. In the **General** tab, under the Security section at the bottom, check the **"Unblock"** box and click **OK**.
+  4. Alternatively, if the blue "Windows protected your PC" warning screen appears when starting the app, click **"More info"** and then click the **"Run anyway"** button.
+
 #### Linux
 - The Linux version is provided as a standalone executable.
 - Due to Linux security restrictions on raw sockets and network actions, you may need to configure the following to enable the network scanning features (such as Ping) to run properly without root:
