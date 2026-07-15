@@ -1,7 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { GetConfig, SaveConfig, GetHistory, DeleteNodeHistory, DeleteLinkHistory, ClearAllHistory } from '../../wailsjs/go/main/App';
-  import { t, currentLanguage } from '../i18n.js';
+  import { t } from '../i18n.js';
 
   export let config = {
     Subnet: '192.168.1.0/24',
@@ -94,7 +94,6 @@
         throw new Error($t('validationGeminiKeyRequired'));
       }
       await SaveConfig(config);
-      currentLanguage.set(config.Language);
       statusType = 'success';
       statusMessage = $t('toastAiSettingsSaved');
     } catch (err) {
@@ -180,20 +179,7 @@
       </div>
     {/if}
 
-    <hr class="border-slate-700/50 my-6" />
 
-    <div>
-      <label for="language" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">{$t('systemLanguage')}</label>
-      <select
-        id="language"
-        bind:value={config.Language}
-        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-3 text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition duration-200"
-      >
-        <option value="auto">{$t('languageAuto')}</option>
-        <option value="en">{$t('languageEn')}</option>
-        <option value="ja">{$t('languageJa')}</option>
-      </select>
-    </div>
 
     <div class="flex items-center justify-between pt-4">
       <button
