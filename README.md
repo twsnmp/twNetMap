@@ -100,10 +100,17 @@ If there are devices that were not automatically discovered, or if you want to a
 
 ![Adding Custom Nodes](images/en/add_custom_node.png)
 
-### 6. Adding Node Connections
+### 6. Adding, Editing, and Deleting Node Connections
 To create a link between two devices manually, click the "+ Add Link" button on the dashboard. Select the source node (From) and destination node (To) from the dropdown lists, optionally enter a label for the link (e.g. "10G, Trunk, vpn"), select the link line style, and click "+ Add Link".
 
+Alternatively, you can display the link addition dialog by **holding the Shift key and clicking two devices on the map in sequence**.
+
 ![Adding Node Connections](images/en/connect_nodes.png)
+
+#### Editing and Deleting Links
+- **Edit**: Clicking and selecting a link on the map will enable the "Edit Link" button on the dashboard.
+- **Delete**: Open the link edit dialog and click the "Delete" button inside the dialog.
+
 
 ### 7. Exporting Network Map & Data
 To save your network map or raw discovery data, click the "Export" button on the dashboard. You can choose from the following formats:
