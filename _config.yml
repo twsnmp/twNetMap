@@ -1,0 +1,5 @@
+title: twNetMap
+description: AIによる分析機能を搭載したネットワーク構成図作成ツール。ネットワークをスキャンして自動的にマップを生成できる。TWSNMPシリーズプロジェクト。
+remote_theme: pages-themes/hacker@v0.2.0
+plugins:
+- jekyll-remote-theme
