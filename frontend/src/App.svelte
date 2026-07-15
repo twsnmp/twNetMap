@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte';
-  import { GetConfig, SaveConfig } from '../wailsjs/go/main/App';
+  import { GetConfig, SaveConfig, GetVersion } from '../wailsjs/go/main/App';
   import { currentLanguage, t } from './i18n.js';
   
   import NetworkMap from './routes/NetworkMap.svelte';
@@ -9,6 +9,7 @@
   import NodeList from './routes/NodeList.svelte';
 
   let activeTab = 'dashboard'; // 'dashboard' | 'nodes' | 'scan' | 'ai'
+  let appVersion = 'v0.1.0';
   let config = {
     Subnet: '192.168.1.0/24',
     SnmpConfigs: [],
@@ -28,6 +29,11 @@
       if (cfg) {
         config = { ...config, ...cfg };
         currentLanguage.set(config.Language || 'auto');
+      }
+      
+      const ver = await GetVersion();
+      if (ver) {
+        appVersion = ver;
       }
     } catch (err) {
       console.error('Failed to load initial config:', err);
@@ -69,7 +75,10 @@
         </svg>
       </div>
       <div>
-        <h1 class="text-sm font-bold tracking-wide uppercase bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">twNetMap</h1>
+        <div class="flex items-baseline gap-1.5">
+          <h1 class="text-sm font-bold tracking-wide uppercase bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">twNetMap</h1>
+          <span class="text-[10px] text-slate-500 font-mono select-all leading-none">{appVersion}</span>
+        </div>
         <p class="text-xxs text-slate-500 font-semibold tracking-wider">{$t('brandSub')}</p>
       </div>
     </div>
@@ -102,7 +111,7 @@
       </button>
     </nav>
 
-    <!-- Language Selector & Version badge -->
+    <!-- Language Selector -->
     <div class="flex items-center gap-4">
       <div class="flex items-center gap-1.5 bg-slate-950/40 px-2.5 py-1 rounded-lg border border-slate-800">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-3.5 h-3.5 text-slate-400">
@@ -117,9 +126,6 @@
           <option value="en" class="bg-slate-900 text-slate-200">{$t('languageEn')}</option>
           <option value="ja" class="bg-slate-900 text-slate-200">{$t('languageJa')}</option>
         </select>
-      </div>
-      <div class="text-xxs text-slate-500 font-mono select-none">
-        v0.1.0
       </div>
     </div>
   </header>
