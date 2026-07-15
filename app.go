@@ -36,12 +36,14 @@ type App struct {
 	scanning          bool
 	aiRunning         bool
 	version           string
+	dataDir           string
 }
 
 // NewApp creates a new App application struct
-func NewApp(version string) *App {
+func NewApp(version string, dataDir string) *App {
 	return &App{
 		version: version,
+		dataDir: dataDir,
 	}
 }
 
@@ -64,12 +66,18 @@ var deviceTypeY = map[string]float64{
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		log.Printf("failed to get user config dir: %v", err)
-		return
+	var appDir string
+	if a.dataDir != "" {
+		appDir = a.dataDir
+	} else {
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			log.Printf("failed to get user config dir: %v", err)
+			return
+		}
+		appDir = filepath.Join(configDir, "twNetMap")
 	}
-	appDir := filepath.Join(configDir, "twNetMap")
+
 	if err := os.MkdirAll(appDir, 0750); err != nil {
 		log.Printf("failed to create app data dir %s: %v", appDir, err)
 		return

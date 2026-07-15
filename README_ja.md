@@ -133,6 +133,27 @@
 
 ---
 
+## データの保存場所
+
+本アプリケーションのデータは、各OSのユーザー設定ディレクトリ内の `twNetMap` フォルダに保存されます。
+
+### デフォルトの保存先
+*   **macOS**: `~/Library/Application Support/twNetMap`
+*   **Windows**: `%APPDATA%\twNetMap`（例: `C:\Users\<ユーザー名>\AppData\Roaming\twNetMap`）
+*   **Linux**: `~/.config/twNetMap`
+
+### 保存されるファイル
+*   **`twnetmap.db`**: 設定、スキャン結果、マップ情報、編集履歴などを保存する bbolt (BoltDB) データベースファイル。
+*   **`secret.key`**: APIキーやパスワードなどの機密情報をAES-256-GCMで暗号化するための暗号化キーファイル。
+
+### 保存場所の変更
+アプリケーション起動時に `-datadir` パラメータを指定することで、データの保存場所を任意のディレクトリに変更できます。
+```bash
+./twNetMap -datadir /path/to/custom/dir
+```
+
+---
+
 ## 注意事項・セキュリティについて
 
 > [!WARNING]

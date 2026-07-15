@@ -2,6 +2,7 @@ package main
 
 import (
 	"embed"
+	"flag"
 
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
@@ -20,8 +21,12 @@ var assets embed.FS
 var version = "v0.1.0"
 
 func main() {
+	var dataDir string
+	flag.StringVar(&dataDir, "datadir", "", "directory to store application data")
+	flag.Parse()
+
 	// Create an instance of the app structure
-	app := NewApp(version)
+	app := NewApp(version, dataDir)
 
 	// Create application with options
 	err := wails.Run(&options.App{

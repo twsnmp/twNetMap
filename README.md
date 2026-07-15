@@ -133,6 +133,27 @@ To organize the layout of your network map automatically, click the "Auto Layout
 
 ---
 
+## Data Storage Location
+
+By default, the application stores its configuration and data inside the `twNetMap` folder within the user's standard configuration directory.
+
+### Default Storage Paths
+*   **macOS**: `~/Library/Application Support/twNetMap`
+*   **Windows**: `%APPDATA%\twNetMap` (e.g. `C:\Users\<Username>\AppData\Roaming\twNetMap`)
+*   **Linux**: `~/.config/twNetMap`
+
+### Generated Files
+*   **`twnetmap.db`**: A bbolt (BoltDB) database file containing system configurations, scan results, network topology, and user action history.
+*   **`secret.key`**: An encryption key file used to protect sensitive data (such as API keys and SNMP credentials) using AES-256-GCM.
+
+### Customizing the Data Directory
+You can override the default data storage directory by starting the application with the `-datadir` startup parameter:
+```bash
+./twNetMap -datadir /path/to/custom/dir
+```
+
+---
+
 ## Caution & Security Considerations
 
 > [!WARNING]
