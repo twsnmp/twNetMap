@@ -35,6 +35,96 @@ An AI-powered network discovery tool that automatically generates network maps f
 
 ---
 
+## Installation
+
+### Download from GitHub Releases
+You can download the pre-built standalone binaries from the [GitHub Releases](https://github.com/twsnmp/twNetMap/releases) page.
+
+#### macOS
+- The macOS version is provided as a signed and notarized **PKG** installer (`.pkg`).
+- Download the PKG file, double-click to open it, and follow the installation wizard.
+
+#### Linux
+- The Linux version is provided as a standalone executable.
+- Due to Linux security restrictions on raw sockets and network actions, you may need to configure the following to enable the network scanning features (such as Ping) to run properly without root:
+  - **Allow Non-privileged ICMP (Ping)**:
+    Run the following command to allow unprivileged ICMP packets to be sent by users:
+    ```bash
+    sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
+    ```
+    To make this configuration permanent, append `net.ipv4.ping_group_range = 0 2147483647` to your `/etc/sysctl.conf` or `/etc/sysctl.d/99-ping.conf`.
+  - **Grant RAW Socket Capabilities**:
+    If you need to use RAW sockets directly, assign the capabilities to the compiled binary:
+    ```bash
+    sudo setcap cap_net_raw+ep ./twNetMap
+    ```
+  - **Firewall Settings**:
+    Make sure outgoing SNMP requests (UDP port 161) and port scans (various TCP ports) are not blocked by local firewalls (e.g. UFW or firewalld).
+
+---
+
+## Usage
+
+Follow these steps to map your network:
+
+### 1. Scan Settings
+Set the target IP address range (CIDR like `192.168.1.0/24`, range like `192.168.1.1-192.168.1.50`, or comma-separated targets). If you want to fetch active SNMP details, configure the SNMP authentication parameters (Community string, SNMP v3 username/password).
+
+![Scan Settings](images/en/scan_settings.png)
+
+### 2. AI Settings
+Select your LLM provider (Google Gemini, OpenAI, or local Ollama) and input the API keys and model parameters. This LLM will be used to analyze neighbor relationships and classify device types.
+
+![AI Settings](images/en/ai_settings.png)
+
+### 3. Network Discovery and Topology Generation
+Start the network scan. Once completed, the scanned device data will be analyzed by the AI, which automatically infers switch and router connections to construct the network map.
+
+![Network Map](images/en/network_map.png)
+
+### 4. Map Adjustment and Export
+You can drag and drop nodes to change the map layout, or add/delete nodes and links manually. The modifications you make are remembered by the system to train the AI to fit your network preferences. You can also view the tabular list of devices or export the map as PNG, SVG, PDF, CSV, Excel, or Draw.io files.
+
+![Node List](images/en/node_list.png)
+
+### 5. Adding Custom Nodes
+If there are devices that were not automatically discovered, or if you want to add manual endpoints to the map, click the "+ Add Node" button on the dashboard. Enter the IP address or a unique ID, a display label, and select the device type.
+
+![Adding Custom Nodes](images/en/add_custom_node.png)
+
+### 6. Adding Node Connections
+To create a link between two devices manually, click the "+ Add Link" button on the dashboard. Select the source node (From) and destination node (To) from the dropdown lists, optionally enter a label for the link (e.g. "10G, Trunk, vpn"), select the link line style, and click "+ Add Link".
+
+![Adding Node Connections](images/en/connect_nodes.png)
+
+### 7. Exporting Network Map & Data
+To save your network map or raw discovery data, click the "Export" button on the dashboard. You can choose from the following formats:
+- **PNG / SVG Image**: Save the visual map as standard or scalable vector graphics.
+- **PDF Document**: Export the map as a PDF page.
+- **Draw.io Diagram (.drawio)**: Open and edit the generated topology directly in Draw.io.
+- **Map JSON**: Export the layout and node/link structured data.
+- **Scan JSON**: Save the raw scanned IP/MAC and SNMP service details.
+- **Node List (CSV)**: Export the device metadata table in CSV format.
+- **Excel Document**: Export a structured spreadsheet containing both the map image and node sheet.
+
+![Exporting Network Map](images/en/export_map.png)
+
+### 8. Auto-Rearranging the Network Map
+To organize the layout of your network map automatically, click the "Auto Layout" button on the dashboard. You can choose one of the following options:
+- **Keep Manual Positions (Only rearrange auto-mapped nodes)**: Reorganizes newly added or automatically discovered nodes while maintaining the locations of any nodes you have manually dragged and positioned.
+- **Reset All Positions (Rearrange all nodes)**: Discards all manual positions and resets the layout of the entire network map. Nodes will be arranged in hierarchical layers by device type if connections exist, or in a 10-column grid sorted by IP address if no topology connection is defined.
+
+![Rearranging the Network Map](images/en/rearrange_layout.png)
+
+---
+
+## Caution & Security Considerations
+
+> [!WARNING]
+> **Authorized Scanning Only**: This tool performs active network scanning (ICMP ping sweeps, TCP port scans, SNMP queries, and service banner grabbing). Scanning networks or hosts without proper authorization may violate security policies, terms of service, or local laws. Always ensure you have explicit permission to scan the target network before running this tool.
+
+---
+
 ## Technical Stack
 
 - **Backend (Go)**
