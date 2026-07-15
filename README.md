@@ -158,21 +158,28 @@ To organize the layout of your network map automatically, click the "Auto Layout
 
 ---
 
-## Getting Started
+## How to Build
+
+By using `mise`, you can automatically manage the required toolchains (Go and Node.js) and run the build/development tasks easily.
 
 ### Prerequisites
-- Go 1.26.5 or higher
-- Node.js (with npm)
-- Wails CLI (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
+- [mise](https://mise.jdx.dev/) installed on your system.
+- Wails CLI (Can be installed via `go install github.com/wailsapp/wails/v2/cmd/wails@latest` after installing Go via mise).
+
+### Setup Tools
+Install the required versions of Go and Node.js defined in `.mise.toml`:
+```bash
+mise install
+```
 
 ### Run in Development Mode
 To launch the application in debug mode with hot reloading:
 ```bash
-wails dev
+mise run dev
 ```
 
 ### Build Production Binary
-To compile the standalone production binary for your operating system:
+To compile the standalone production binary for your operating system (this automatically builds the frontend assets and compiles the Go backend with version flags):
 ```bash
-wails build
+mise run build
 ```

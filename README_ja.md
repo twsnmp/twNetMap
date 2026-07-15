@@ -158,21 +158,28 @@
 
 ---
 
-## 開始方法
+## ビルド方法
+
+`mise` を使用することで、必要なツールチェーン（Go、Node.js）のバージョン管理と、開発やビルドのタスク実行をすべて一括で簡単に行うことができます。
 
 ### 前提条件
-- Go 1.26.5 以上
-- Node.js (および npm)
-- Wails CLI (`go install github.com/wailsapp/wails/v2/cmd/wails@latest`)
+- システムに [mise](https://mise.jdx.dev/) がインストールされていること。
+- Wails CLI（miseでGoをインストール後、`go install github.com/wailsapp/wails/v2/cmd/wails@latest` でインストールできます）。
+
+### ツールのセットアップ
+`.mise.toml` で定義されている必要なバージョンの Go と Node.js をインストールします：
+```bash
+mise install
+```
 
 ### 開発モードでの実行
-ホットリロードを有効にして、デバッグモードでアプリケーションを起動します：
+ホットリロードを有効にして、デバッグモードでアプリケーションを起動します（Gitタグ情報からバージョンを自動的に取得して `wails dev` を実行します）：
 ```bash
-wails dev
+mise run dev
 ```
 
 ### プロダクションビルドの作成
-お使いのOS向けに、スタンドアロンのプロダクション実行可能バイナリをコンパイルします：
+お使いのOS向けに、スタンドアロンのプロダクション実行可能バイナリをコンパイルします（フロントエンドアセットのビルドと、バージョンフラグを付与したGoバックエンドのビルドを自動的に実行します）：
 ```bash
-wails build
+mise run build
 ```
