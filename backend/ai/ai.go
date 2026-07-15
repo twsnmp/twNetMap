@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/tmc/langchaingo/llms"
@@ -15,6 +16,19 @@ import (
 	"twNetMap/backend/datastore"
 	"twNetMap/backend/scanner"
 )
+
+// debugMode is enabled when the TWNETMAP_DEBUG environment variable is set to "1" or "true".
+// This prevents sensitive scan data and LLM responses from being written to logs in production.
+var debugMode = func() bool {
+	v := strings.ToLower(strings.TrimSpace(os.Getenv("TWNETMAP_DEBUG")))
+	return v == "1" || v == "true"
+}()
+
+func logDebug(format string, args ...any) {
+	if debugMode {
+		log.Printf(format, args...)
+	}
+}
 
 // LLMResponse matches the strict format requested.
 type LLMResponse struct {
@@ -174,7 +188,7 @@ Output Schema:
 
 	userPrompt := fmt.Sprintf("Here is the user's historical editing behavior (prioritize this as learning/fine-tuning instructions):\n\n%s\n\nHere is the raw scan data:\n\n%s\n\nGenerate the network topology JSON reflecting the user's preferences:", string(historyJSON), string(scanJSON))
 
-	log.Printf("ai userPrompt=%s", userPrompt)
+	logDebug("ai userPrompt=%s", userPrompt)
 	content := []llms.MessageContent{
 		llms.TextParts(llms.ChatMessageTypeSystem, systemPrompt),
 		llms.TextParts(llms.ChatMessageTypeHuman, userPrompt),
@@ -189,7 +203,7 @@ Output Schema:
 	// Strip markdown blocks if the LLM ignored instructions
 	text = cleanJSONResponse(text)
 
-	log.Printf("ai resp=%s", text)
+	logDebug("ai resp=%s", text)
 
 	var llmResp LLMResponse
 	if err := json.Unmarshal([]byte(text), &llmResp); err != nil {

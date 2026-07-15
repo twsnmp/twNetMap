@@ -45,6 +45,20 @@ func NewApp(version string) *App {
 	}
 }
 
+// deviceTypeY defines the canonical Y-coordinate (vertical tier) for each device type
+// in the tiered topology layout. Both RunAIInference and RearrangeNodes use this map
+// so that layouts are always consistent.
+var deviceTypeY = map[string]float64{
+	"router":  100.0,
+	"switch":  250.0,
+	"server":  400.0,
+	"pc":      550.0,
+	"printer": 700.0,
+	"wifi":    850.0,
+	"mobile":  1000.0,
+	"unknown": 1150.0,
+}
+
 // startup is called when the app starts. The context is saved
 // and we initialize the database.
 func (a *App) startup(ctx context.Context) {
@@ -400,16 +414,6 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 
 	// Assign coordinates based on tiered topology layout
 	typeCount := make(map[string]int)
-	typeY := map[string]float64{
-		"router":  100.0,
-		"switch":  250.0,
-		"server":  400.0,
-		"pc":      550.0,
-		"printer": 700.0,
-		"wifi":    850.0,
-		"mobile":  1000.0,
-		"unknown": 1150.0,
-	}
 
 	for _, node := range nodesToSave {
 		if exist, ok := existingNodeMap[node.ID]; ok && exist.ManuallyEdited {
@@ -417,9 +421,9 @@ func (a *App) RunAIInference() (*datastore.NodeLinkData, error) {
 			node.Y = exist.Y
 		} else {
 			t := node.Type
-			y, found := typeY[t]
+			y, found := deviceTypeY[t]
 			if !found {
-				y = typeY["unknown"]
+				y = deviceTypeY["unknown"]
 				t = "unknown"
 			}
 			col := typeCount[t] % 8
@@ -735,25 +739,17 @@ func (a *App) RearrangeNodes(preserveManual bool) (*datastore.NodeLinkData, erro
 	sortNodesByIP(nodes)
 
 	if len(links) > 0 {
-		// Tiered layout by device type for topology
+		// Tiered layout by device type for topology (uses shared deviceTypeY for consistency)
 		typeCount := make(map[string]int)
-		typeY := map[string]float64{
-			"router":  100.0,
-			"switch":  250.0,
-			"server":  400.0,
-			"pc":      550.0,
-			"printer": 700.0,
-			"unknown": 850.0,
-		}
 
 		for _, node := range nodes {
 			if preserveManual && node.ManuallyEdited {
 				continue
 			}
 			t := node.Type
-			y, found := typeY[t]
+			y, found := deviceTypeY[t]
 			if !found {
-				y = typeY["unknown"]
+				y = deviceTypeY["unknown"]
 				t = "unknown"
 			}
 			col := typeCount[t] % 8

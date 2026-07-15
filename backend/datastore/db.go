@@ -105,6 +105,7 @@ type NodeLinkData struct {
 type DB struct {
 	conn *bolt.DB
 	mu   sync.Mutex
+	key  []byte // AES-256-GCM encryption key for sensitive config fields
 }
 
 // NewDB opens the database and initializes buckets.
@@ -115,7 +116,13 @@ func NewDB(dbDir string) (*DB, error) {
 		return nil, fmt.Errorf("failed to open bbolt db at %s: %w", dbPath, err)
 	}
 
-	db := &DB{conn: conn}
+	key, err := loadOrCreateKey(dbDir)
+	if err != nil {
+		conn.Close()
+		return nil, fmt.Errorf("failed to initialize encryption key: %w", err)
+	}
+
+	db := &DB{conn: conn, key: key}
 	if err := db.initBuckets(); err != nil {
 		conn.Close()
 		return nil, err
@@ -147,6 +154,7 @@ func (db *DB) initBuckets() error {
 }
 
 // GetConfig retrieves the system configuration.
+// Sensitive fields (API keys, SNMP passwords) are decrypted before being returned.
 func (db *DB) GetConfig() (*Config, error) {
 	var cfg Config
 	err := db.conn.View(func(tx *bolt.Tx) error {
@@ -176,14 +184,44 @@ func (db *DB) GetConfig() (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// Decrypt sensitive fields (backward-compatible: plain-text values pass through unchanged).
+	cfg.APIKeyOpenAI = decryptField(db.key, cfg.APIKeyOpenAI)
+	cfg.APIKeyGemini = decryptField(db.key, cfg.APIKeyGemini)
+	for i := range cfg.SnmpConfigs {
+		cfg.SnmpConfigs[i].Password = decryptField(db.key, cfg.SnmpConfigs[i].Password)
+	}
+
 	return &cfg, nil
 }
 
 // SaveConfig saves the system configuration.
+// Sensitive fields (API keys, SNMP passwords) are encrypted before being persisted.
 func (db *DB) SaveConfig(cfg *Config) error {
+	// Work on a copy so the caller's in-memory config is not modified.
+	encrypted := *cfg
+
+	var err error
+	if encrypted.APIKeyOpenAI, err = encryptField(db.key, cfg.APIKeyOpenAI); err != nil {
+		return fmt.Errorf("failed to encrypt OpenAI API key: %w", err)
+	}
+	if encrypted.APIKeyGemini, err = encryptField(db.key, cfg.APIKeyGemini); err != nil {
+		return fmt.Errorf("failed to encrypt Gemini API key: %w", err)
+	}
+
+	// Encrypt SNMP passwords (copy the slice to avoid mutating the original).
+	encryptedSnmp := make([]SnmpSetting, len(cfg.SnmpConfigs))
+	copy(encryptedSnmp, cfg.SnmpConfigs)
+	for i, s := range cfg.SnmpConfigs {
+		if encryptedSnmp[i].Password, err = encryptField(db.key, s.Password); err != nil {
+			return fmt.Errorf("failed to encrypt SNMP password at index %d: %w", i, err)
+		}
+	}
+	encrypted.SnmpConfigs = encryptedSnmp
+
 	return db.conn.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketConfig)
-		data, err := json.Marshal(cfg)
+		data, err := json.Marshal(&encrypted)
 		if err != nil {
 			return err
 		}

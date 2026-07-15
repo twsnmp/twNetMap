@@ -18,7 +18,7 @@ An AI-powered network discovery tool that automatically generates network maps f
    - **Service Banner Grabbing**: Connects to open ports to capture SSH/FTP banners and parses/cleans HTML response titles.
 
 2. **AI-Driven Topology Inference**
-   - Integrates with multiple LLM providers: **Ollama**, **OpenAI**, and **Google Gemini** using [langchaingo](file:///Users/ymi/prj/twsnmp/twNetMap/go.mod#L8).
+   - Integrates with multiple LLM providers: **Ollama**, **OpenAI**, and **Google Gemini** using [langchaingo](https://github.com/tmc/langchaingo).
    - Classifies device types into standard categories: `router`, `switch`, `wifi`, `mobile`, `pc`, `server`, `printer`, or `unknown`.
    - Utilizes structural reasoning (e.g., LLDP topology information) to automatically construct link relationships between devices.
    - **Feedback Loop**: Incorporates the user's manual modifications (node details or deleted links) back into the prompt history to adapt future inferences to user preferences.
@@ -158,17 +158,19 @@ To organize the layout of your network map automatically, click the "Auto Layout
 
 ## Project Structure
 
-- [main.go](file:///Users/ymi/prj/twsnmp/twNetMap/main.go): The desktop entry point that boots the Wails application.
-- [app.go](file:///Users/ymi/prj/twsnmp/twNetMap/app.go): Wails binding methods exposing core database operations, scanning control, AI logic, and file dialogs.
+- [main.go](main.go): The desktop entry point that boots the Wails application.
+- [app.go](app.go): Wails binding methods exposing core database operations, scanning control, AI logic, and file dialogs.
 - `backend/`:
-  - [ai/ai.go](file:///Users/ymi/prj/twsnmp/twNetMap/backend/ai/ai.go): Formulates system/user LLM prompts and handles provider authentication (Gemini, OpenAI, Ollama).
-  - [scanner/scanner.go](file:///Users/ymi/prj/twsnmp/twNetMap/backend/scanner/scanner.go): Handles IP range parsing, ICMP/Ping, TCP port sweeps, SNMP walking, and banner grabbing.
-  - [datastore/db.go](file:///Users/ymi/prj/twsnmp/twNetMap/backend/datastore/db.go): Manages local `bbolt` buckets storing scan results, node configurations, and user action history.
+  - [ai/ai.go](backend/ai/ai.go): Formulates system/user LLM prompts and handles provider authentication (Gemini, OpenAI, Ollama).
+  - [scanner/scanner.go](backend/scanner/scanner.go): Handles IP range parsing, ICMP/Ping, TCP port sweeps, SNMP walking, and banner grabbing.
+  - [datastore/db.go](backend/datastore/db.go): Manages local `bbolt` buckets storing scan results, node configurations, and user action history.
+  - [datastore/crypto.go](backend/datastore/crypto.go): AES-256-GCM encryption utilities for protecting sensitive config fields (API keys, SNMP passwords).
 - `frontend/`:
   - `src/App.svelte`: Root view coordinating layout and page routing.
   - `src/routes/`:
     - `NetworkMap.svelte`: The visual interface displaying nodes/links and handling user map actions.
     - `NodeList.svelte`: Direct list/table editor for discovered devices.
+    - `ScanDataModal.svelte`: Modal dialog for viewing raw JSON scan result data.
     - `ScanSettings.svelte` / `AISettings.svelte`: Admin dashboards for scan targets and AI provider settings.
 
 ---

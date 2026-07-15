@@ -18,7 +18,7 @@
    - **サービスバナー取得**: オープンポートに接続してSSH/FTPバナーをキャプチャし、HTMLレスポンスのタイトル等をパースしてクリーンアップします。
 
 2. **AI駆動トポロジー推論**
-   - [langchaingo](file:///Users/ymi/prj/twsnmp/twNetMap/go.mod#L8) を使用して、複数のLLMプロバイダー（**Ollama**、**OpenAI**、**Google Gemini**）と連携します。
+   - [langchaingo](https://github.com/tmc/langchaingo) を使用して、複数のLLMプロバイダー（**Ollama**、**OpenAI**、**Google Gemini**）と連携します。
    - デバイスタイプを標準カテゴリ（`router`、`switch`、`wifi`、`mobile`、`pc`、`server`、`printer`、`unknown`）に分類します。
    - LLDPトポロジー情報などの構造的推論を活用し、デバイス間のリンク関係を自動的に構築します。
    - **フィードバックループ**: ユーザーによる手動の編集（ノード情報の修正やリンクの削除）を履歴データとして保存し、次回のAIプロンプトに優先反映することで、推論の精度をユーザーの好みに適合させていきます。
@@ -158,17 +158,19 @@
 
 ## プロジェクト構成
 
-- [main.go](file:///Users/ymi/prj/twsnmp/twNetMap/main.go): Wailsアプリケーションを起動するデスクトップ版のエントリーポイント。
-- [app.go](file:///Users/ymi/prj/twsnmp/twNetMap/app.go): コアデータベース操作、スキャン制御、AIロジック、およびファイルダイアログを公開するWailsバインディングメソッド群。
+- [main.go](main.go): Wailsアプリケーションを起動するデスクトップ版のエントリーポイント。
+- [app.go](app.go): コアデータベース操作、スキャン制御、AIロジック、およびファイルダイアログを公開するWailsバインディングメソッド群。
 - `backend/`:
-  - [ai/ai.go](file:///Users/ymi/prj/twsnmp/twNetMap/backend/ai/ai.go): システム/ユーザーLLMプロンプトの構築、およびプロバイダー認証（Gemini、OpenAI、Ollama）の処理。
-  - [scanner/scanner.go](file:///Users/ymi/prj/twsnmp/twNetMap/backend/scanner/scanner.go): IP範囲の解析、ICMP/Ping、TCPポートスキャン、SNMPウォーク、およびバナー取得の実行。
-  - [datastore/db.go](file:///Users/ymi/prj/twsnmp/twNetMap/backend/datastore/db.go): スキャン結果、ノード設定、ユーザー編集履歴を管理するローカル `bbolt` バケットの操作。
+  - [ai/ai.go](backend/ai/ai.go): システム/ユーザーLLMプロンプトの構築、およびプロバイダー認証（Gemini、OpenAI、Ollama）の処理。
+  - [scanner/scanner.go](backend/scanner/scanner.go): IP範囲の解析、ICMP/Ping、TCPポートスキャン、SNMPウォーク、およびバナー取得の実行。
+  - [datastore/db.go](backend/datastore/db.go): スキャン結果、ノード設定、ユーザー編集履歴を管理するローカル `bbolt` バケットの操作。
+  - [datastore/crypto.go](backend/datastore/crypto.go): APIキーおよびSNMPパスワードを保護するAES-256-GCM暗号化ユーティリティ。
 - `frontend/`:
   - `src/App.svelte`: レイアウトとページルーティングを管理するルートビュー。
   - `src/routes/`:
     - `NetworkMap.svelte`: ノード/リンクを表示し、マップに対する操作を処理する可視化画面。
     - `NodeList.svelte`: 検出されたデバイスをリスト/テーブル形式で編集できる画面。
+    - `ScanDataModal.svelte`: スキャン生データ（JSON）を参照するためのモーダルダイアログ。
     - `ScanSettings.svelte` / `AISettings.svelte`: スキャン対象やAIプロバイダー等の管理設定画面。
 
 ---
