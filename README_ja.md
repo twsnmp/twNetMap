@@ -1,6 +1,8 @@
 # twNetMap
 
-[English](file:///Users/ymi/prj/twsnmp/twNetMap/README.md)
+[English](README.md)
+
+![twNetMap インフォグラフィックス](images/ja/tw_net_map_infographic_ja.jpg)
 
 スキャンしたデータからネットワークマップを自動生成する、AI搭載ネットワーク検出ツールです。Go、Wails v2、およびSvelteで構築されています。
 

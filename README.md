@@ -1,6 +1,8 @@
 # twNetMap
 
-[日本語 (Japanese)](file:///Users/ymi/prj/twsnmp/twNetMap/README_ja.md)
+[日本語 (Japanese)](README_ja.md)
+
+![twNetMap Infographics](images/en/tw_net_map_infographic.jpg)
 
 An AI-powered network discovery tool that automatically generates network maps from scanned data. Built with Go, Wails v2, and Svelte.
 
