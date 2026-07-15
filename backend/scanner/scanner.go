@@ -250,15 +250,21 @@ func tryUDPPing(ipStr string, timeout time.Duration) bool {
 
 const protocolICMP = 1
 
+func newCommand(name string, arg ...string) *exec.Cmd {
+	cmd := exec.Command(name, arg...)
+	setupCmd(cmd)
+	return cmd
+}
+
 func execPingCmd(ip string, timeout time.Duration) bool {
 	var cmd *exec.Cmd
 	timeoutMs := fmt.Sprintf("%d", timeout.Milliseconds())
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("ping", "-n", "1", "-w", timeoutMs, ip)
+		cmd = newCommand("ping", "-n", "1", "-w", timeoutMs, ip)
 	} else if runtime.GOOS == "darwin" {
-		cmd = exec.Command("ping", "-c", "1", "-t", strconv.Itoa(int(timeout.Seconds())), "-W", timeoutMs, ip)
+		cmd = newCommand("ping", "-c", "1", "-t", strconv.Itoa(int(timeout.Seconds())), "-W", timeoutMs, ip)
 	} else {
-		cmd = exec.Command("ping", "-c", "1", "-W", strconv.Itoa(int(timeout.Seconds())), ip)
+		cmd = newCommand("ping", "-c", "1", "-W", strconv.Itoa(int(timeout.Seconds())), ip)
 	}
 
 	err := cmd.Run()
@@ -271,9 +277,9 @@ func GetARPTable() map[string]string {
 
 	var cmd *exec.Cmd
 	if runtime.GOOS == "windows" {
-		cmd = exec.Command("arp", "-a")
+		cmd = newCommand("arp", "-a")
 	} else {
-		cmd = exec.Command("arp", "-an")
+		cmd = newCommand("arp", "-an")
 	}
 
 	out, err := cmd.Output()
