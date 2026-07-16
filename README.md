@@ -56,21 +56,9 @@ You can download the pre-built standalone binaries from the [GitHub Releases](ht
   4. Alternatively, if the blue "Windows protected your PC" warning screen appears when starting the app, click **"More info"** and then click the **"Run anyway"** button.
 
 #### Linux
-- The Linux version is provided as a standalone executable.
-- Due to Linux security restrictions on raw sockets and network actions, you may need to configure the following to enable the network scanning features (such as Ping) to run properly without root:
-  - **Allow Non-privileged ICMP (Ping)**:
-    Run the following command to allow unprivileged ICMP packets to be sent by users:
-    ```bash
-    sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
-    ```
-    To make this configuration permanent, append `net.ipv4.ping_group_range = 0 2147483647` to your `/etc/sysctl.conf` or `/etc/sysctl.d/99-ping.conf`.
-  - **Grant RAW Socket Capabilities**:
-    If you need to use RAW sockets directly, assign the capabilities to the compiled binary:
-    ```bash
-    sudo setcap cap_net_raw+ep ./twNetMap
-    ```
-  - **Firewall Settings**:
-    Make sure outgoing SNMP requests (UDP port 161) and port scans (various TCP ports) are not blocked by local firewalls (e.g. UFW or firewalld).
+- The Linux version is provided as a **tar.gz** archive containing a standalone executable.
+- Simply download and extract the tar.gz file — no special permission configuration is required.
+- Depending on your network environment, outgoing SNMP requests (UDP port 161) and port scan traffic (various TCP ports) may be blocked by your local firewall (e.g. UFW or firewalld). If so, please review your firewall settings.
 
 ---
 
