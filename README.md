@@ -13,8 +13,11 @@ An AI-powered network discovery tool that automatically generates network maps f
 1. **Active & Passive Network Scanning**
    - **Ping Check**: Verifies host reachability using ICMP (unprivileged UDP ping with a fallback to OS native commands).
    - **ARP Table Parsing**: Automatically extracts IP-MAC mapping tables from the local system and active SNMP agents.
-   - **Port Scanning**: Scans common TCP ports (21, 22, 23, 25, 80, 110, 143, 161, 443, 3306, 3389, 5432, 8080, 9100).
-   - **SNMP Query (v2c/v3)**: Queries remote agents to retrieve system info (`sysName`, `sysDesc`), physical MAC addresses, and Link Layer Discovery Protocol (LLDP) neighbor details.
+   - **Port Scanning**: Scans common TCP ports (21, 22, 23, 25, 80, 110, 143, 161, 443, 3306, 3389, 5432, 8080, 9100). The scanning behavior is configurable via **Port Scan Mode**:
+     - **OFF** (default): No active port scan. Attempts banner/connection checks only on key ports (21, 22, 23, 25, 80, 110, 143, 443, 8080) to confirm which are actually open. Suitable for firewall-protected environments.
+     - **Safe**: Limits concurrency to 2 simultaneous connections per host with a 100 ms delay between scans (low-and-slow).
+     - **Fast**: Scans all ports in parallel with higher concurrency (original behavior).
+   - **SNMP Query (v2c/v3)**: Queries remote agents to retrieve system info (`sysName`, `sysDesc`), physical MAC addresses, and Link Layer Discovery Protocol (LLDP) neighbor details. For SNMP-enabled devices, open TCP ports are obtained from the `tcpConnTable` MIB (`.1.3.6.1.2.1.6.13.1.1`) instead of performing a port scan.
    - **Service Banner Grabbing**: Connects to open ports to capture SSH/FTP banners and parses/cleans HTML response titles.
 
 2. **AI-Driven Topology Inference**
@@ -76,7 +79,7 @@ You can download the pre-built standalone binaries from the [GitHub Releases](ht
 Follow these steps to map your network:
 
 ### 1. Scan Settings
-Set the target IP address range (CIDR like `192.168.1.0/24`, range like `192.168.1.1-192.168.1.50`, or comma-separated targets). If you want to fetch active SNMP details, configure the SNMP authentication parameters (Community string, SNMP v3 username/password).
+Set the target IP address range (CIDR like `192.168.1.0/24`, range like `192.168.1.1-192.168.1.50`, or comma-separated targets). Configure SNMP authentication parameters (Community string, SNMP v3 username/password) if you want to retrieve device information from SNMP agents. You can also choose the **Port Scan Mode** (OFF / Safe / Fast) to control how aggressively TCP ports are probed — useful for environments where firewalls may block or flag port scans.
 
 ![Scan Settings](images/en/scan_settings.png)
 

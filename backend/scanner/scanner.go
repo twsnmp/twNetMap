@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"regexp"
 	"runtime"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -736,6 +737,8 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 	for ip := range pingAliveIPs {
 		aliveIPs = append(aliveIPs, ip)
 	}
+	// ログやデバッグ時の再現性のため、処理順をIPアドレス順に安定化する
+	sort.Strings(aliveIPs)
 
 	// SNMP query for ping-alive hosts
 	var wgSNMP sync.WaitGroup
@@ -906,6 +909,9 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 	progressCallback(60, "Scanning ports and retrieving banner info...")
 
 	portsToScan := []int{21, 22, 23, 25, 80, 110, 143, 161, 443, 3306, 3389, 5432, 8080, 9100}
+	// keyPorts は "off" モード時にバナー取得（TCP接続）で開放を検証するポート一覧。
+	// 161 (SNMP) はUDPのため TCP接続は常に失敗するが、バナー検証フェーズで
+	// 除外されるため openPorts には残らない。これは意図的な動作である。
 	keyPorts := []int{21, 22, 23, 25, 80, 110, 143, 161, 443, 8080}
 
 	var results []*ScanResult
