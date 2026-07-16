@@ -13,7 +13,8 @@
     OllamaModel: 'llama3',
     APIKeyOpenAI: '',
     APIKeyGemini: '',
-    Language: 'auto'
+    Language: 'auto',
+    PortScanMode: 'off'
   };
 
   let saving = false;
@@ -33,6 +34,7 @@
       const cfg = await GetConfig();
       if (cfg) {
         config = { ...config, ...cfg };
+        config.PortScanMode = config.PortScanMode || 'off';
       }
     } catch (err) {
       console.error('Failed to load config:', err);
@@ -151,6 +153,19 @@
           class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition duration-200"
         />
       </div>
+    </div>
+
+    <div>
+      <label for="portScanMode" class="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-2">{$t('portScanMode')}</label>
+      <select
+        id="portScanMode"
+        bind:value={config.PortScanMode}
+        class="w-full bg-slate-900 border border-slate-700 rounded-xl px-4 py-2 text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500/50 focus:border-sky-500 transition duration-200"
+      >
+        <option value="off">{$t('portScanOff')}</option>
+        <option value="safe">{$t('portScanSafe')}</option>
+        <option value="fast">{$t('portScanFast')}</option>
+      </select>
     </div>
 
     <hr class="border-slate-700/50 my-6" />

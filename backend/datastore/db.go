@@ -65,8 +65,9 @@ type Config struct {
 	OllamaURL       string `json:"OllamaURL"`
 	OllamaModel     string `json:"OllamaModel"`
 	APIKeyOpenAI    string `json:"APIKeyOpenAI"`
-	APIKeyGemini    string `json:"APIKeyGemini"`
-	Language        string `json:"Language"` // "auto", "en", "ja"
+	APIKeyGemini    string        `json:"APIKeyGemini"`
+	Language        string        `json:"Language"` // "auto", "en", "ja"
+	PortScanMode    string        `json:"PortScanMode"` // "off", "safe", "fast"
 }
 
 // Node represents a network device.
@@ -176,6 +177,7 @@ func (db *DB) GetConfig() (*Config, error) {
 				OllamaURL:      "http://localhost:11434",
 				OllamaModel:    "llama3",
 				Language:       "auto",
+				PortScanMode:   "off",
 			}
 			return nil
 		}

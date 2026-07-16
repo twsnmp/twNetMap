@@ -495,7 +495,8 @@ func getArpTableFromSNMP(agent *gosnmp.GoSNMP) map[string]string {
 }
 
 // QuerySNMP gets SysName, SysDesc, MAC address, ARP table, and runs LLDP walks if SNMP is available.
-func QuerySNMP(ip, community, mode, user, password string, timeoutSec, retry int) (string, string, string, map[string]string, []LLDPNeighbor) {
+// It also queries tcpConnTable to get local open listening TCP ports.
+func QuerySNMP(ip, community, mode, user, password string, timeoutSec, retry int) (string, string, string, map[string]string, []LLDPNeighbor, []int) {
 	agent := &gosnmp.GoSNMP{
 		Target:    ip,
 		Port:      161,
@@ -523,7 +524,7 @@ func QuerySNMP(ip, community, mode, user, password string, timeoutSec, retry int
 
 	err := agent.Connect()
 	if err != nil {
-		return "", "", "", nil, nil
+		return "", "", "", nil, nil, nil
 	}
 	defer agent.Conn.Close()
 
@@ -610,7 +611,28 @@ func QuerySNMP(ip, community, mode, user, password string, timeoutSec, retry int
 		}
 	}
 
-	return sysName, sysDesc, mac, snmpArp, neighbors
+	// Retrieve open TCP ports via tcpConnTable (.1.3.6.1.2.1.6.13.1.1)
+	var openPorts []int
+	openPortsMap := make(map[int]bool)
+	_ = agent.Walk(".1.3.6.1.2.1.6.13.1.1", func(variable gosnmp.SnmpPDU) error {
+		name := variable.Name
+		state := getIntValue(variable.Value)
+		if state == 2 { // 2 = listen
+			suffix := strings.TrimPrefix(name, ".1.3.6.1.2.1.6.13.1.1.")
+			parts := strings.Split(suffix, ".")
+			if len(parts) >= 10 {
+				if p, err := strconv.Atoi(parts[4]); err == nil {
+					openPortsMap[p] = true
+				}
+			}
+		}
+		return nil
+	})
+	for p := range openPortsMap {
+		openPorts = append(openPorts, p)
+	}
+
+	return sysName, sysDesc, mac, snmpArp, neighbors, openPorts
 }
 
 func getStringValue(val interface{}) string {
@@ -634,22 +656,24 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 	progressCallback(0, fmt.Sprintf("Generating range: found %d IP addresses to scan", len(ips)))
 
 	// First query the ARP table to get existing MAC mappings
-	progressCallback(5, "Reading local ARP table...")
-	arpTable := GetARPTable()
+	progressCallback(3, "Reading local ARP table...")
+	localArpTable := GetARPTable()
 
-	snmpArpTable := make(map[string]string)
-	var snmpArpMu sync.Mutex
+	// フェーズ1：PINGによるIPアドレス収集
+	progressCallback(5, "Running Ping sweep...")
 
-	var results []*ScanResult
-	var mu sync.Mutex
+	var pingAliveMu sync.Mutex
+	pingAliveIPs := make(map[string]bool)
 
-	total := len(ips)
 	concurrency := 20
+	if cfg.PortScanMode == "off" || cfg.PortScanMode == "safe" {
+		concurrency = 10
+	}
+
 	sem := make(chan bool, concurrency)
 	var wg sync.WaitGroup
 
-	portsToScan := []int{21, 22, 23, 25, 80, 110, 143, 161, 443, 3306, 3389, 5432, 8080, 9100}
-
+	total := len(ips)
 	for i, ipStr := range ips {
 		select {
 		case <-ctx.Done():
@@ -666,36 +690,82 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 				wg.Done()
 			}()
 
-			// 1. Ping
 			timeout := time.Duration(cfg.Timeout) * time.Second
-			alive := Ping(ip, timeout)
-			if !alive {
-				// We still try to resolve it from the ARP table.
-				// Sometimes devices respond to ARP but block ICMP.
-				if _, exists := arpTable[ip]; !exists {
-					return
+			if Ping(ip, timeout) {
+				pingAliveMu.Lock()
+				pingAliveIPs[ip] = true
+				pingAliveMu.Unlock()
+
+				// PINGで応答があったものは即座にマップに追加（通知）
+				if onDetectCallback != nil {
+					mac := localArpTable[ip]
+					vendor := datastore.FindVendor(mac)
+					onDetectCallback(&ScanResult{
+						IP:     ip,
+						MAC:    mac,
+						Vendor: vendor,
+					})
 				}
 			}
+			// Progress 5% to 40%
+			pct := 5 + int(float64(index+1)/float64(total)*35.0)
+			progressCallback(pct, fmt.Sprintf("Pinged %s", ip))
+		}(i, ipStr)
+	}
+	wg.Wait()
 
-			// 2. ARP and Vendor OUI
-			mac := arpTable[ip]
-			if mac == "" {
-				snmpArpMu.Lock()
-				mac = snmpArpTable[ip]
-				snmpArpMu.Unlock()
-			}
-			vendor := datastore.FindVendor(mac)
+	progressCallback(40, "Querying SNMP for ping-alive hosts...")
 
-			// 3. Port Scan
-			openPorts := ScanPorts(ip, portsToScan, timeout)
+	type HostInfo struct {
+		IP            string
+		MAC           string
+		SysName       string
+		SysDesc       string
+		SNMPActive    bool
+		SNMPPorts     []int
+		LLDPNeighbors []LLDPNeighbor
+	}
 
-			// 4. SNMP/LLDP
+	var hostInfos []*HostInfo
+	var hostInfosMu sync.Mutex
+
+	snmpArpTable := make(map[string]string)
+	var snmpArpMu sync.Mutex
+
+	var aliveIPs []string
+	for ip := range pingAliveIPs {
+		aliveIPs = append(aliveIPs, ip)
+	}
+
+	// SNMP query for ping-alive hosts
+	var wgSNMP sync.WaitGroup
+	semSNMP := make(chan bool, 5) // SNMP query concurrency
+	for _, ipStr := range aliveIPs {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		wgSNMP.Add(1)
+		semSNMP <- true
+
+		go func(ip string) {
+			defer func() {
+				<-semSNMP
+				wgSNMP.Done()
+			}()
+
 			var sysName, sysDesc, snmpMac string
 			var snmpArp map[string]string
 			var neighbors []LLDPNeighbor
+			var snmpPorts []int
+			snmpActive := false
+
 			for _, snmpCfg := range cfg.SnmpConfigs {
-				sysName, sysDesc, snmpMac, snmpArp, neighbors = QuerySNMP(ip, snmpCfg.Community, snmpCfg.Mode, snmpCfg.User, snmpCfg.Password, cfg.Timeout, cfg.Retry)
+				sysName, sysDesc, snmpMac, snmpArp, neighbors, snmpPorts = QuerySNMP(ip, snmpCfg.Community, snmpCfg.Mode, snmpCfg.User, snmpCfg.Password, cfg.Timeout, cfg.Retry)
 				if sysName != "" || len(neighbors) > 0 || snmpMac != "" {
+					snmpActive = true
 					if snmpArp != nil && len(snmpArp) > 0 {
 						snmpArpMu.Lock()
 						for k, v := range snmpArp {
@@ -707,59 +777,284 @@ func PerformScan(ctx context.Context, target string, cfg *datastore.Config, prog
 				}
 			}
 
-			if mac == "" && snmpMac != "" {
-				mac = snmpMac
-				vendor = datastore.FindVendor(mac)
+			hostInfosMu.Lock()
+			hostInfos = append(hostInfos, &HostInfo{
+				IP:            ip,
+				MAC:           snmpMac,
+				SysName:       sysName,
+				SysDesc:       sysDesc,
+				SNMPActive:    snmpActive,
+				SNMPPorts:     snmpPorts,
+				LLDPNeighbors: neighbors,
+			})
+			hostInfosMu.Unlock()
+		}(ipStr)
+	}
+	wgSNMP.Wait()
+
+	progressCallback(50, "Analyzing ARP tables for unpingable hosts...")
+
+	targetIPSet := make(map[string]bool)
+	for _, ip := range ips {
+		targetIPSet[ip] = true
+	}
+
+	detectedIPSet := make(map[string]bool)
+	hostInfosMu.Lock()
+	for _, host := range hostInfos {
+		detectedIPSet[host.IP] = true
+	}
+	hostInfosMu.Unlock()
+
+	var arpDetectedIPs []string
+
+	// Check local ARP table
+	for ip := range localArpTable {
+		if targetIPSet[ip] && !detectedIPSet[ip] {
+			arpDetectedIPs = append(arpDetectedIPs, ip)
+			detectedIPSet[ip] = true
+
+			// ARPで検知された時点で即座にマップに追加（通知）
+			if onDetectCallback != nil {
+				mac := localArpTable[ip]
+				vendor := datastore.FindVendor(mac)
+				onDetectCallback(&ScanResult{
+					IP:     ip,
+					MAC:    mac,
+					Vendor: vendor,
+				})
+			}
+		}
+	}
+
+	// Check SNMP collected ARP table
+	snmpArpMu.Lock()
+	for ip := range snmpArpTable {
+		if targetIPSet[ip] && !detectedIPSet[ip] {
+			arpDetectedIPs = append(arpDetectedIPs, ip)
+			detectedIPSet[ip] = true
+
+			// ARPで検知された時点で即座にマップに追加（通知）
+			if onDetectCallback != nil {
+				mac := snmpArpTable[ip]
+				vendor := datastore.FindVendor(mac)
+				onDetectCallback(&ScanResult{
+					IP:     ip,
+					MAC:    mac,
+					Vendor: vendor,
+				})
+			}
+		}
+	}
+	snmpArpMu.Unlock()
+
+	// Query SNMP for ARP-detected (unpingable) hosts
+	var wgArpSNMP sync.WaitGroup
+	semArpSNMP := make(chan bool, 5)
+	for _, ipStr := range arpDetectedIPs {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		wgArpSNMP.Add(1)
+		semArpSNMP <- true
+
+		go func(ip string) {
+			defer func() {
+				<-semArpSNMP
+				wgArpSNMP.Done()
+			}()
+
+			var sysName, sysDesc, snmpMac string
+			var snmpArp map[string]string
+			var neighbors []LLDPNeighbor
+			var snmpPorts []int
+			snmpActive := false
+
+			for _, snmpCfg := range cfg.SnmpConfigs {
+				sysName, sysDesc, snmpMac, snmpArp, neighbors, snmpPorts = QuerySNMP(ip, snmpCfg.Community, snmpCfg.Mode, snmpCfg.User, snmpCfg.Password, cfg.Timeout, cfg.Retry)
+				if sysName != "" || len(neighbors) > 0 || snmpMac != "" {
+					snmpActive = true
+					if snmpArp != nil && len(snmpArp) > 0 {
+						snmpArpMu.Lock()
+						for k, v := range snmpArp {
+							snmpArpTable[k] = v
+						}
+						snmpArpMu.Unlock()
+					}
+					break
+				}
 			}
 
+			hostInfosMu.Lock()
+			hostInfos = append(hostInfos, &HostInfo{
+				IP:            ip,
+				MAC:           snmpMac,
+				SysName:       sysName,
+				SysDesc:       sysDesc,
+				SNMPActive:    snmpActive,
+				SNMPPorts:     snmpPorts,
+				LLDPNeighbors: neighbors,
+			})
+			hostInfosMu.Unlock()
+		}(ipStr)
+	}
+	wgArpSNMP.Wait()
+
+	progressCallback(60, "Scanning ports and retrieving banner info...")
+
+	portsToScan := []int{21, 22, 23, 25, 80, 110, 143, 161, 443, 3306, 3389, 5432, 8080, 9100}
+	keyPorts := []int{21, 22, 23, 25, 80, 110, 143, 161, 443, 8080}
+
+	var results []*ScanResult
+	var resultsMu sync.Mutex
+
+	concurrencyPort := 10
+	if cfg.PortScanMode == "off" || cfg.PortScanMode == "safe" {
+		concurrencyPort = 3
+	}
+
+	semPort := make(chan bool, concurrencyPort)
+	var wgPort sync.WaitGroup
+
+	hostInfosMu.Lock()
+	totalHosts := len(hostInfos)
+	hostsToProcess := make([]*HostInfo, len(hostInfos))
+	copy(hostsToProcess, hostInfos)
+	hostInfosMu.Unlock()
+
+	for idx, host := range hostsToProcess {
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		default:
+		}
+
+		wgPort.Add(1)
+		semPort <- true
+
+		go func(index int, h *HostInfo) {
+			defer func() {
+				<-semPort
+				wgPort.Done()
+			}()
+
+			timeout := time.Duration(cfg.Timeout) * time.Second
+			var openPorts []int
+
+			if h.SNMPActive && len(h.SNMPPorts) > 0 {
+				// (1) SNMPに対応しているデバイス：SNMPから取得したポートを利用
+				openPorts = h.SNMPPorts
+			} else {
+				// SNMP非対応
+				switch cfg.PortScanMode {
+				case "safe":
+					// (2) 安全性重視（低速）：スキャン同時実行数を抑えてゆっくりスキャン
+					openPorts = scanPortsSlow(h.IP, portsToScan, timeout)
+				case "fast":
+					// (3) 高速：従来のパラメータでスキャン
+					openPorts = ScanPorts(h.IP, portsToScan, timeout)
+				default: // "off"
+					// (4) OFF：主要ポートを検証リストに加える
+					openPorts = keyPorts
+				}
+			}
+
+			// (5) 検証すべきポートリストに接続して情報を取得 (HTTP, Banner)
+			banners := grabBannersAndHTTPInfo(h.IP, openPorts, timeout)
+
+			// もしPortScanModeが"off"だった場合は、バナーが取れた（実際に開いていた）ポートのみをopenPortsとして残す
+			if cfg.PortScanMode == "off" && !h.SNMPActive {
+				var verifiedPorts []int
+				for _, p := range openPorts {
+					pStr := strconv.Itoa(p)
+					if _, exists := banners[pStr]; exists {
+						verifiedPorts = append(verifiedPorts, p)
+					}
+				}
+				openPorts = verifiedPorts
+			}
+
+			// MACアドレスの補正
+			mac := h.MAC
+			if mac == "" {
+				mac = localArpTable[h.IP]
+			}
+			if mac == "" {
+				snmpArpMu.Lock()
+				mac = snmpArpTable[h.IP]
+				snmpArpMu.Unlock()
+			}
+			vendor := datastore.FindVendor(mac)
+
+			// DNS逆引き
+			sysName := h.SysName
 			if sysName == "" {
-				// Fallback to DNS reverse lookup
-				names, err := net.LookupAddr(ip)
+				names, err := net.LookupAddr(h.IP)
 				if err == nil && len(names) > 0 {
 					sysName = strings.TrimSuffix(names[0], ".")
 				}
 			}
 
-			// 5. Grab Banners and HTTP Info
-			banners := grabBannersAndHTTPInfo(ip, openPorts, timeout)
-
 			res := &ScanResult{
-				IP:            ip,
+				IP:            h.IP,
 				MAC:           mac,
 				Vendor:        vendor,
 				SysName:       sysName,
-				SysDesc:       sysDesc,
+				SysDesc:       h.SysDesc,
 				OpenPorts:     openPorts,
-				LLDPNeighbors: neighbors,
+				LLDPNeighbors: h.LLDPNeighbors,
 				Banners:       banners,
 			}
 
-			mu.Lock()
+			resultsMu.Lock()
 			results = append(results, res)
-			pct := 5 + int(float64(index+1)/float64(total)*90.0)
-			progressCallback(pct, fmt.Sprintf("Scanned %s - Alive (Ports: %v, SNMP: %v)", ip, openPorts, sysName != ""))
+			pct := 60 + int(float64(index+1)/float64(totalHosts)*38.0)
+			progressCallback(pct, fmt.Sprintf("Finished details for %s", h.IP))
 			if onDetectCallback != nil {
 				onDetectCallback(res)
 			}
-			mu.Unlock()
+			resultsMu.Unlock()
 
-		}(i, ipStr)
+		}(idx, host)
 	}
-
-	wg.Wait()
-
-	// Final pass: Fill in missing MAC addresses using collected SNMP ARP mappings
-	for _, res := range results {
-		if res.MAC == "" {
-			if mac, ok := snmpArpTable[res.IP]; ok {
-				res.MAC = mac
-				res.Vendor = datastore.FindVendor(mac)
-			}
-		}
-	}
+	wgPort.Wait()
 
 	progressCallback(100, fmt.Sprintf("Scan completed: %d active devices identified", len(results)))
 	return results, nil
+}
+
+func scanPortsSlow(ip string, ports []int, timeout time.Duration) []int {
+	var openPorts []int
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	sem := make(chan bool, 2) // 同時スキャン数を2ポートに制限
+
+	for _, port := range ports {
+		wg.Add(1)
+		sem <- true
+		go func(p int) {
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+			addr := fmt.Sprintf("%s:%d", ip, p)
+			conn, err := net.DialTimeout("tcp", addr, timeout)
+			if err == nil {
+				conn.Close()
+				mu.Lock()
+				openPorts = append(openPorts, p)
+				mu.Unlock()
+			}
+			// 安全性重視のため、ポートスキャンの合間に適度なウェイト（例: 100ms）を入れる
+			time.Sleep(100 * time.Millisecond)
+		}(port)
+	}
+	wg.Wait()
+	return openPorts
 }
 
 var scriptTagRegex = regexp.MustCompile(`(?is)<script.*?>.*?</script>`)
