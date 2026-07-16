@@ -134,6 +134,41 @@ To organize the layout of your network map automatically, click the "Auto Layout
 
 ![Rearranging the Network Map](images/en/rearrange_layout.png)
 
+### 9. Layout Mode Panel
+The **"⚙️ Layout Mode" panel** is always visible in the **top-left corner of the map screen**, allowing you to switch the automatic layout algorithm in real time.
+
+| Icon | Mode | Description |
+|:---:|---|---|
+| 🌲 | **Hierarchical** | Automatically arranges nodes in a layered hierarchy based on device type. Routers, switches, and PCs are organized from top to bottom, making it easier to understand the overall network structure. |
+| ⚛️ | **Force-Directed** | Simulates attraction and repulsion forces between nodes, placing them at natural positions based on connection relationships. Well-suited for visually organizing complex topologies. |
+| 📌 | **Static** | Disables automatic layout and locks nodes in the positions you have manually dragged them to. Use this when you want to preserve a custom arrangement. |
+
+When **Hierarchical** or **Force-Directed** mode is selected, a **Spacing** slider appears at the bottom of the panel. Drag it to adjust the distance between nodes (50px–300px).
+
+Your chosen layout mode and spacing setting are saved in the browser's `localStorage`, so they are automatically restored the next time you open the app.
+
+### 10. Map Navigation Buttons
+The **top-right** and **bottom-right** corners of the map screen display the built-in navigation controls provided by `vis-network`.
+
+#### Top-Right: Pan (Scroll) Buttons
+
+| Button | Function |
+|:---:|---|
+| ↑ | Scroll the map upward |
+| ← | Scroll the map to the left |
+| ↓ | Scroll the map downward |
+| → | Scroll the map to the right |
+
+#### Bottom-Right: Zoom Buttons
+
+| Button | Function |
+|:---:|---|
+| 🔍 (center circle) | Fit all nodes into the visible screen area |
+| **+** | Zoom in |
+| **−** | Zoom out |
+
+> **Keyboard Shortcuts**: You can also use the **arrow keys** (↑←↓→) to pan the map and the **`+` / `-` keys** to zoom in and out.
+
 ---
 
 ## Data Storage Location
